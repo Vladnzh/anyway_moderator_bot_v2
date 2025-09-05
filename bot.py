@@ -22,14 +22,16 @@ from logger_config import setup_logging, log_bot_event
 # Загружаем переменные окружения
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    print("❌ BOT_TOKEN не найден! Установите его в .env файле")
-    exit(1)
-
 # Настраиваем красивое логирование
 setup_logging("MODERATOR BOT", "INFO")
 logger = logging.getLogger('BOT')
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    logger.error("❌ BOT_TOKEN не найден!")
+    exit(1)
+
+logger.info(f"🔑 BOT_TOKEN найден: {BOT_TOKEN[:10]}...{BOT_TOKEN[-4:]}")
 
 def get_file_hash(file_content: bytes) -> str:
     """Вычислить хэш файла"""
@@ -273,9 +275,15 @@ async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     """Основная функция"""
     print("🚀 Запуск бота с SQLite базой данных...")
+    print(f"📁 Путь к базе данных: {db.db_path}")
     
     # Инициализируем базу данных
-    db.init_database()
+    try:
+        db.init_database()
+        print("✅ База данных успешно инициализирована")
+    except Exception as e:
+        print(f"❌ Ошибка инициализации базы данных: {e}")
+        exit(1)
     
     # Создаем приложение
     app = Application.builder().token(BOT_TOKEN).build()

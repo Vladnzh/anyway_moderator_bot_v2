@@ -18,8 +18,10 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 if not ADMIN_TOKEN:
-    print("⚠️ ADMIN_TOKEN не установлен! Установите его в .env файле или переменной окружения")
-    ADMIN_TOKEN = "default_admin_token"
+    print("⚠️ ADMIN_TOKEN не установлен, используется 'changeme'")
+    ADMIN_TOKEN = "changeme"
+else:
+    print(f"🔑 ADMIN_TOKEN найден: {ADMIN_TOKEN[:6]}...{ADMIN_TOKEN[-4:]}")
 
 if not BOT_TOKEN:
     print("⚠️ BOT_TOKEN не установлен! Установите его в .env файле или переменной окружения")

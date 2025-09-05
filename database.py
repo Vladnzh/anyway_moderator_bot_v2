@@ -7,6 +7,7 @@
 import sqlite3
 import json
 import uuid
+import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -17,8 +18,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Database:
-    def __init__(self, db_path: str = "bot_data.db"):
+    def __init__(self, db_path: str = None):
+        # Используем переменную окружения DATABASE_PATH или значение по умолчанию
+        if db_path is None:
+            db_path = os.getenv("DATABASE_PATH", "bot_data.db")
+        
         self.db_path = db_path
+        
+        # Создаем директорию если её нет
+        db_dir = Path(self.db_path).parent
+        db_dir.mkdir(parents=True, exist_ok=True)
+        
         self.init_database()
     
     def get_connection(self):
