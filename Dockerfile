@@ -23,7 +23,7 @@ COPY . .
 RUN mkdir -p /app/data /app/static /app/json_backup
 
 # Устанавливаем права на выполнение для скриптов
-RUN chmod +x migrate_to_sqlite.py
+# RUN chmod +x migrate_to_sqlite.py
 
 # Создаем пользователя для безопасности
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
