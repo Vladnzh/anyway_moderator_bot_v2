@@ -47,7 +47,7 @@ function login() {
     document.getElementById('tokenInput').value = token;
     
     // Проверяем токен запросом к API
-    apiRequest('GET', '/config')
+    apiRequest('GET', '/stats')
         .then(() => {
             showAdminPanel();
             loadAllData();
