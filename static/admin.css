@@ -576,43 +576,6 @@ body {
     font-weight: 600;
 }
 
-.media-modal-controls {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.media-nav-btn {
-    background: #4a5568;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s ease;
-    font-weight: 500;
-}
-
-.media-nav-btn:hover:not(:disabled) {
-    background: #5a6578;
-    transform: translateY(-1px);
-}
-
-.media-nav-btn:disabled {
-    background: #2d3748;
-    color: #718096;
-    cursor: not-allowed;
-    transform: none;
-}
-
-.media-counter {
-    color: #cbd5e0;
-    font-size: 14px;
-    padding: 0 10px;
-    font-weight: 500;
-}
-
 .media-modal-close {
     background: none;
     border: none;
