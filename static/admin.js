@@ -733,9 +733,6 @@ function createModerationItemElement(item) {
     const mediaInfo = item.media_info || {};
     if (mediaInfo.has_photo) mediaBadges.push('<span class="media-badge">📷 Фото</span>');
     if (mediaInfo.has_video) mediaBadges.push('<span class="media-badge">🎥 Видео</span>');
-    if (mediaInfo.has_document) mediaBadges.push('<span class="media-badge">📄 Документ</span>');
-    if (mediaInfo.has_audio) mediaBadges.push('<span class="media-badge">🎵 Аудио</span>');
-    if (mediaInfo.has_sticker) mediaBadges.push('<span class="media-badge">🎭 Стикер</span>');
     
     // Безопасное получение значений
     const username = escapeHtml(item.username || 'Неизвестный пользователь');
@@ -981,15 +978,7 @@ function formatDateTime(timestamp) {
 // === ФУНКЦИИ ДЛЯ ПРОСМОТРА МЕДИА ===
 
 function generateMediaPreview(mediaInfo) {
-    if (!mediaInfo) {
-        return '';
-    }
-    
-    const hasAnyMedia = mediaInfo.has_photo || mediaInfo.has_video || 
-                       mediaInfo.has_document || mediaInfo.has_audio || 
-                       mediaInfo.has_sticker;
-    
-    if (!hasAnyMedia) {
+    if (!mediaInfo || (!mediaInfo.has_photo && !mediaInfo.has_video)) {
         return '';
     }
     
@@ -1019,42 +1008,6 @@ function generateMediaPreview(mediaInfo) {
         `);
     }
     
-    // Превью документов
-    if (mediaInfo.has_document && mediaInfo.document_file_id) {
-        previews.push(`
-            <div class="moderation-media-preview" onclick="showModerationMedia('${mediaInfo.document_file_id}', 'document')">
-                <div class="media-preview-placeholder">
-                    <div class="media-icon">📄</div>
-                    <div class="media-text">Нажмите для просмотра документа</div>
-                </div>
-            </div>
-        `);
-    }
-    
-    // Превью аудио
-    if (mediaInfo.has_audio && mediaInfo.audio_file_id) {
-        previews.push(`
-            <div class="moderation-media-preview" onclick="showModerationMedia('${mediaInfo.audio_file_id}', 'audio')">
-                <div class="media-preview-placeholder">
-                    <div class="media-icon">🎵</div>
-                    <div class="media-text">Нажмите для прослушивания аудио</div>
-                </div>
-            </div>
-        `);
-    }
-    
-    // Превью стикеров
-    if (mediaInfo.has_sticker && mediaInfo.sticker_file_id) {
-        previews.push(`
-            <div class="moderation-media-preview" onclick="showModerationMedia('${mediaInfo.sticker_file_id}', 'sticker')">
-                <div class="media-preview-placeholder">
-                    <div class="media-icon">🎭</div>
-                    <div class="media-text">Нажмите для просмотра стикера</div>
-                </div>
-            </div>
-        `);
-    }
-    
     return previews.length > 0 ? `<div class="moderation-media-container">${previews.join('')}</div>` : '';
 }
 
@@ -1063,18 +1016,10 @@ async function showModerationMedia(fileId, mediaType) {
         // Создаем модальное окно
         const modal = document.createElement('div');
         modal.className = 'media-modal';
-        const mediaTypeNames = {
-            'photo': '🖼️ Фото из модерации',
-            'video': '🎥 Видео из модерации', 
-            'document': '📄 Документ из модерации',
-            'audio': '🎵 Аудио из модерации',
-            'sticker': '🎭 Стикер из модерации'
-        };
-        
         modal.innerHTML = `
             <div class="media-modal-content">
                 <div class="media-modal-header">
-                    <h3>${mediaTypeNames[mediaType] || '📎 Медиафайл из модерации'}</h3>
+                    <h3>${mediaType === 'photo' ? '🖼️ Фото из модерации' : '🎥 Видео из модерации'}</h3>
                     <button class="media-modal-close" onclick="closeMediaModal()">&times;</button>
                 </div>
                 <div class="media-modal-body">
@@ -1118,7 +1063,7 @@ async function showModerationMedia(fileId, mediaType) {
                         📊 Размер: ${formatFileSize(response.file_size)}
                     </p>
                 `;
-            } else if (mediaType === 'video') {
+            } else {
                 mediaBody.innerHTML = `
                     <video controls class="media-preview-video" preload="metadata">
                         <source src="${response.file_url}" type="video/mp4">
@@ -1128,44 +1073,6 @@ async function showModerationMedia(fileId, mediaType) {
                         📁 ${response.file_path}<br>
                         📊 Размер: ${formatFileSize(response.file_size)}
                     </p>
-                `;
-            } else if (mediaType === 'audio') {
-                mediaBody.innerHTML = `
-                    <audio controls class="media-preview-audio">
-                        <source src="${response.file_url}">
-                        Ваш браузер не поддерживает аудио.
-                    </audio>
-                    <p class="media-info">
-                        📁 ${response.file_path}<br>
-                        📊 Размер: ${formatFileSize(response.file_size)}
-                    </p>
-                `;
-            } else if (mediaType === 'sticker') {
-                mediaBody.innerHTML = `
-                    <img src="${response.file_url}" 
-                         alt="Стикер из модерации" 
-                         class="media-preview-sticker"
-                         onload="this.style.opacity=1"
-                         style="opacity:0; transition: opacity 0.3s ease;">
-                    <p class="media-info">
-                        📁 ${response.file_path}<br>
-                        📊 Размер: ${formatFileSize(response.file_size)}
-                    </p>
-                `;
-            } else {
-                // Документы и другие файлы
-                mediaBody.innerHTML = `
-                    <div class="media-preview-document">
-                        <div class="document-icon">📄</div>
-                        <div class="document-info">
-                            <h4>Документ из модерации</h4>
-                            <p>📁 ${response.file_path}</p>
-                            <p>📊 Размер: ${formatFileSize(response.file_size)}</p>
-                            <a href="${response.file_url}" target="_blank" class="btn-download">
-                                ⬇️ Скачать файл
-                            </a>
-                        </div>
-                    </div>
                 `;
             }
         } else {

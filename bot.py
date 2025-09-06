@@ -8,7 +8,6 @@ import asyncio
 import hashlib
 import uuid
 import logging
-import re
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -34,9 +33,6 @@ if not BOT_TOKEN:
 
 logger.info(f"🔑 BOT_TOKEN найден: {BOT_TOKEN[:10]}...{BOT_TOKEN[-4:]}")
 
-# Словарь для группировки медиафайлов
-media_groups = {}
-
 def get_file_hash(file_content: bytes) -> str:
     """Вычислить хэш файла"""
     return hashlib.md5(file_content).hexdigest()
@@ -46,25 +42,12 @@ async def get_media_info(message) -> Dict[str, Any]:
     media_info = {
         "has_photo": False,
         "has_video": False,
-        "has_document": False,
-        "has_audio": False,
-        "has_sticker": False,
         "photo_file_id": None,
         "video_file_id": None,
-        "document_file_id": None,
-        "audio_file_id": None,
-        "sticker_file_id": None,
         "media_file_ids": [],
         "photo_file_ids": [],
-        "video_file_ids": [],
-        "document_file_ids": [],
-        "audio_file_ids": [],
-        "sticker_file_ids": [],
-        "media_group_id": None,
-        "media_type": ""
+        "video_file_ids": []
     }
-    
-    media_types = []
     
     # Обработка фото
     if message.photo:
@@ -73,7 +56,6 @@ async def get_media_info(message) -> Dict[str, Any]:
         media_info["photo_file_id"] = largest_photo.file_id
         media_info["media_file_ids"].append(largest_photo.file_id)
         media_info["photo_file_ids"].append(largest_photo.file_id)
-        media_types.append("photo")
     
     # Обработка видео
     if message.video:
@@ -81,44 +63,12 @@ async def get_media_info(message) -> Dict[str, Any]:
         media_info["video_file_id"] = message.video.file_id
         media_info["media_file_ids"].append(message.video.file_id)
         media_info["video_file_ids"].append(message.video.file_id)
-        media_types.append("video")
-    
-    # Обработка документов
-    if message.document:
-        media_info["has_document"] = True
-        media_info["document_file_id"] = message.document.file_id
-        media_info["media_file_ids"].append(message.document.file_id)
-        media_info["document_file_ids"].append(message.document.file_id)
-        media_types.append("document")
-    
-    # Обработка аудио
-    if message.audio:
-        media_info["has_audio"] = True
-        media_info["audio_file_id"] = message.audio.file_id
-        media_info["media_file_ids"].append(message.audio.file_id)
-        media_info["audio_file_ids"].append(message.audio.file_id)
-        media_types.append("audio")
-    
-    # Обработка стикеров
-    if message.sticker:
-        media_info["has_sticker"] = True
-        media_info["sticker_file_id"] = message.sticker.file_id
-        media_info["media_file_ids"].append(message.sticker.file_id)
-        media_info["sticker_file_ids"].append(message.sticker.file_id)
-        media_types.append("sticker")
-    
-    # Обработка медиагруппы (альбома)
-    if hasattr(message, 'media_group_id') and message.media_group_id:
-        media_info["media_group_id"] = message.media_group_id
-    
-    # Устанавливаем общий тип медиа
-    media_info["media_type"] = ", ".join(media_types) if media_types else ""
     
     return media_info
 
 async def check_media_duplicates(context: ContextTypes.DEFAULT_TYPE, message, media_info: Dict[str, Any]) -> bool:
     """Проверить дублирование медиафайлов"""
-    if not media_info["media_file_ids"]:
+    if not (media_info["has_photo"] or media_info["has_video"]):
         return False
     
     for file_id in media_info["media_file_ids"]:
@@ -132,19 +82,8 @@ async def check_media_duplicates(context: ContextTypes.DEFAULT_TYPE, message, me
             if db.check_media_hash(file_hash):
                 return True
             
-            # Определяем тип файла
-            file_type = "unknown"
-            if file_id in media_info["photo_file_ids"]:
-                file_type = "photo"
-            elif file_id in media_info["video_file_ids"]:
-                file_type = "video"
-            elif file_id in media_info["document_file_ids"]:
-                file_type = "document"
-            elif file_id in media_info["audio_file_ids"]:
-                file_type = "audio"
-            elif file_id in media_info["sticker_file_ids"]:
-                file_type = "sticker"
-            
+            # Добавляем новый хэш
+            file_type = "photo" if file_id in media_info["photo_file_ids"] else "video"
             db.add_media_hash(
                 file_hash, file_id, file_type,
                 message.from_user.id, message.chat_id, message.message_id
@@ -220,7 +159,7 @@ def append_log(message, matched_tag: Dict[str, Any], thread_name: str, media_inf
             'trigger': matched_tag['tag'],
             'emoji': matched_tag['emoji'],
             'thread_name': thread_name,
-            'media_type': media_info['media_type'],
+            'media_type': 'photo' if media_info['has_photo'] else ('video' if media_info['has_video'] else ''),
             'caption': message.caption or ''
         }
         
@@ -260,15 +199,10 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tag_text = tag['tag'].lower()
         
         # Проверяем соответствие режима поиска
-        if tag['match_mode'] == 'equals':
-            # Ищем точное совпадение хештега в тексте
-            # Хештег должен быть отдельным словом (разделен пробелами или знаками препинания)
-            pattern = r'(?<!\S)' + re.escape(tag_text) + r'(?!\S)'
-            if re.search(pattern, text):
-                matched_tag = tag
-                break
-        elif tag['match_mode'] == 'prefix' and tag_text in text:
-            # Для prefix ищем хештег в любом месте текста
+        if tag['match_mode'] == 'equals' and tag_text == text.strip():
+            matched_tag = tag
+            break
+        elif tag['match_mode'] == 'prefix' and text.startswith(tag_text):
             matched_tag = tag
             break
     
@@ -283,16 +217,13 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
     media_info = await get_media_info(message)
     
     # Проверяем требование медиафайла
-    has_any_media = (media_info['has_photo'] or media_info['has_video'] or 
-                     media_info['has_document'] or media_info['has_audio'] or 
-                     media_info['has_sticker'])
-    if matched_tag['require_photo'] and not has_any_media:
+    if matched_tag['require_photo'] and not (media_info['has_photo'] or media_info['has_video']):
         if matched_tag['reply_need_photo']:
             await message.reply_text(matched_tag['reply_need_photo'])
         return
     
     # Проверяем дублирование медиафайлов
-    if has_any_media:
+    if media_info['has_photo'] or media_info['has_video']:
         is_duplicate = await check_media_duplicates(context, message, media_info)
         if is_duplicate:
             if matched_tag['reply_duplicate']:
