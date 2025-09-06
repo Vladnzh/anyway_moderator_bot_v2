@@ -985,99 +985,138 @@ function generateMediaPreview(mediaInfo) {
         return '';
     }
     
+    // Отладочная информация
+    console.log('generateMediaPreview получил mediaInfo:', mediaInfo);
+    
     const hasAnyMedia = mediaInfo.has_photo || mediaInfo.has_video || 
                        mediaInfo.has_document || mediaInfo.has_audio || 
                        mediaInfo.has_sticker;
     
     if (!hasAnyMedia) {
+        console.log('Нет медиафайлов для отображения');
         return '';
     }
     
     const previews = [];
     
     // Превью фото (все фото из массива)
-    if (mediaInfo.has_photo && mediaInfo.photo_file_ids && mediaInfo.photo_file_ids.length > 0) {
-        mediaInfo.photo_file_ids.forEach((fileId, index) => {
-            const photoCount = mediaInfo.photo_file_ids.length;
-            const label = photoCount > 1 ? `Фото ${index + 1}/${photoCount}` : 'Нажмите для просмотра фото';
+    if (mediaInfo.has_photo) {
+        // Используем массив photo_file_ids если есть, иначе fallback на photo_file_id
+        const photoIds = mediaInfo.photo_file_ids && mediaInfo.photo_file_ids.length > 0 
+            ? mediaInfo.photo_file_ids 
+            : (mediaInfo.photo_file_id ? [mediaInfo.photo_file_id] : []);
             
-            previews.push(`
-                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.photo_file_ids).replace(/"/g, '&quot;')}, 'photo', ${index})">
-                    <div class="media-preview-placeholder">
-                        <div class="media-icon">🖼️</div>
-                        <div class="media-text">${label}</div>
+        if (photoIds.length > 0) {
+            photoIds.forEach((fileId, index) => {
+                const photoCount = photoIds.length;
+                const label = photoCount > 1 ? `Фото ${index + 1}/${photoCount}` : 'Нажмите для просмотра фото';
+                
+                previews.push(`
+                    <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(photoIds).replace(/"/g, '&quot;')}, 'photo', ${index})">
+                        <div class="media-preview-placeholder">
+                            <div class="media-icon">🖼️</div>
+                            <div class="media-text">${label}</div>
+                        </div>
                     </div>
-                </div>
-            `);
-        });
+                `);
+            });
+        }
     }
     
     // Превью видео (все видео из массива)
-    if (mediaInfo.has_video && mediaInfo.video_file_ids && mediaInfo.video_file_ids.length > 0) {
-        mediaInfo.video_file_ids.forEach((fileId, index) => {
-            const videoCount = mediaInfo.video_file_ids.length;
-            const label = videoCount > 1 ? `Видео ${index + 1}/${videoCount}` : 'Нажмите для просмотра видео';
+    if (mediaInfo.has_video) {
+        // Используем массив video_file_ids если есть, иначе fallback на video_file_id
+        const videoIds = mediaInfo.video_file_ids && mediaInfo.video_file_ids.length > 0 
+            ? mediaInfo.video_file_ids 
+            : (mediaInfo.video_file_id ? [mediaInfo.video_file_id] : []);
             
-            previews.push(`
-                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.video_file_ids).replace(/"/g, '&quot;')}, 'video', ${index})">
-                    <div class="media-preview-placeholder">
-                        <div class="media-icon">🎥</div>
-                        <div class="media-text">${label}</div>
+        if (videoIds.length > 0) {
+            videoIds.forEach((fileId, index) => {
+                const videoCount = videoIds.length;
+                const label = videoCount > 1 ? `Видео ${index + 1}/${videoCount}` : 'Нажмите для просмотра видео';
+                
+                previews.push(`
+                    <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(videoIds).replace(/"/g, '&quot;')}, 'video', ${index})">
+                        <div class="media-preview-placeholder">
+                            <div class="media-icon">🎥</div>
+                            <div class="media-text">${label}</div>
+                        </div>
                     </div>
-                </div>
-            `);
-        });
+                `);
+            });
+        }
     }
     
     // Превью документов (все документы из массива)
-    if (mediaInfo.has_document && mediaInfo.document_file_ids && mediaInfo.document_file_ids.length > 0) {
-        mediaInfo.document_file_ids.forEach((fileId, index) => {
-            const docCount = mediaInfo.document_file_ids.length;
-            const label = docCount > 1 ? `Документ ${index + 1}/${docCount}` : 'Нажмите для просмотра документа';
+    if (mediaInfo.has_document) {
+        // Используем массив document_file_ids если есть, иначе fallback на document_file_id
+        const documentIds = mediaInfo.document_file_ids && mediaInfo.document_file_ids.length > 0 
+            ? mediaInfo.document_file_ids 
+            : (mediaInfo.document_file_id ? [mediaInfo.document_file_id] : []);
             
-            previews.push(`
-                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.document_file_ids).replace(/"/g, '&quot;')}, 'document', ${index})">
-                    <div class="media-preview-placeholder">
-                        <div class="media-icon">📄</div>
-                        <div class="media-text">${label}</div>
+        if (documentIds.length > 0) {
+            documentIds.forEach((fileId, index) => {
+                const docCount = documentIds.length;
+                const label = docCount > 1 ? `Документ ${index + 1}/${docCount}` : 'Нажмите для просмотра документа';
+                
+                previews.push(`
+                    <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(documentIds).replace(/"/g, '&quot;')}, 'document', ${index})">
+                        <div class="media-preview-placeholder">
+                            <div class="media-icon">📄</div>
+                            <div class="media-text">${label}</div>
+                        </div>
                     </div>
-                </div>
-            `);
-        });
+                `);
+            });
+        }
     }
     
     // Превью аудио (все аудио из массива)
-    if (mediaInfo.has_audio && mediaInfo.audio_file_ids && mediaInfo.audio_file_ids.length > 0) {
-        mediaInfo.audio_file_ids.forEach((fileId, index) => {
-            const audioCount = mediaInfo.audio_file_ids.length;
-            const label = audioCount > 1 ? `Аудио ${index + 1}/${audioCount}` : 'Нажмите для прослушивания аудио';
+    if (mediaInfo.has_audio) {
+        // Используем массив audio_file_ids если есть, иначе fallback на audio_file_id
+        const audioIds = mediaInfo.audio_file_ids && mediaInfo.audio_file_ids.length > 0 
+            ? mediaInfo.audio_file_ids 
+            : (mediaInfo.audio_file_id ? [mediaInfo.audio_file_id] : []);
             
-            previews.push(`
-                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.audio_file_ids).replace(/"/g, '&quot;')}, 'audio', ${index})">
-                    <div class="media-preview-placeholder">
-                        <div class="media-icon">🎵</div>
-                        <div class="media-text">${label}</div>
+        if (audioIds.length > 0) {
+            audioIds.forEach((fileId, index) => {
+                const audioCount = audioIds.length;
+                const label = audioCount > 1 ? `Аудио ${index + 1}/${audioCount}` : 'Нажмите для прослушивания аудио';
+                
+                previews.push(`
+                    <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(audioIds).replace(/"/g, '&quot;')}, 'audio', ${index})">
+                        <div class="media-preview-placeholder">
+                            <div class="media-icon">🎵</div>
+                            <div class="media-text">${label}</div>
+                        </div>
                     </div>
-                </div>
-            `);
-        });
+                `);
+            });
+        }
     }
     
     // Превью стикеров (все стикеры из массива)
-    if (mediaInfo.has_sticker && mediaInfo.sticker_file_ids && mediaInfo.sticker_file_ids.length > 0) {
-        mediaInfo.sticker_file_ids.forEach((fileId, index) => {
-            const stickerCount = mediaInfo.sticker_file_ids.length;
-            const label = stickerCount > 1 ? `Стикер ${index + 1}/${stickerCount}` : 'Нажмите для просмотра стикера';
+    if (mediaInfo.has_sticker) {
+        // Используем массив sticker_file_ids если есть, иначе fallback на sticker_file_id
+        const stickerIds = mediaInfo.sticker_file_ids && mediaInfo.sticker_file_ids.length > 0 
+            ? mediaInfo.sticker_file_ids 
+            : (mediaInfo.sticker_file_id ? [mediaInfo.sticker_file_id] : []);
             
-            previews.push(`
-                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.sticker_file_ids).replace(/"/g, '&quot;')}, 'sticker', ${index})">
-                    <div class="media-preview-placeholder">
-                        <div class="media-icon">🎭</div>
-                        <div class="media-text">${label}</div>
+        if (stickerIds.length > 0) {
+            stickerIds.forEach((fileId, index) => {
+                const stickerCount = stickerIds.length;
+                const label = stickerCount > 1 ? `Стикер ${index + 1}/${stickerCount}` : 'Нажмите для просмотра стикера';
+                
+                previews.push(`
+                    <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(stickerIds).replace(/"/g, '&quot;')}, 'sticker', ${index})">
+                        <div class="media-preview-placeholder">
+                            <div class="media-icon">🎭</div>
+                            <div class="media-text">${label}</div>
+                        </div>
                     </div>
-                </div>
-            `);
-        });
+                `);
+            });
+        }
     }
     
     return previews.length > 0 ? `<div class="moderation-media-container">${previews.join('')}</div>` : '';
