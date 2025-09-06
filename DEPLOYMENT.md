@@ -78,6 +78,17 @@ git clone https://github.com/your-username/anyway-moderator-bot-v2.git .
 ```
 
 ### 2. Настройка переменных окружения
+
+#### 🚀 Автоматическая настройка (рекомендуется)
+```bash
+# Интерактивная настройка токенов
+./setup_tokens.sh
+
+# Или быстрая настройка с параметрами
+./setup_tokens.sh YOUR_BOT_TOKEN YOUR_ADMIN_TOKEN
+```
+
+#### 🔧 Ручная настройка
 ```bash
 # Копируем пример конфигурации
 cp env.example .env
@@ -136,13 +147,45 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 
 ## 🚀 Запуск
 
-### Development режим (без Nginx)
+### 🎯 Универсальный запуск (рекомендуется)
+
+#### Быстрый старт
+```bash
+# Настройка токенов и запуск
+./setup_tokens.sh
+
+# Или всё в одной команде
+./run_bot.sh start --bot-token YOUR_BOT_TOKEN
+```
+
+#### Управление ботом
+```bash
+# Запуск
+./run_bot.sh start
+
+# Перезапуск с новыми токенами
+./run_bot.sh restart --admin-token NEW_TOKEN
+
+# Полная пересборка
+./run_bot.sh rebuild
+
+# Статус и логи
+./run_bot.sh status
+./run_bot.sh logs
+
+# Остановка
+./run_bot.sh stop
+```
+
+### 🔧 Классический запуск
+
+#### Development режим (без Nginx)
 ```bash
 chmod +x deploy.sh
 ./deploy.sh staging
 ```
 
-### Production режим (с Nginx и SSL)
+#### Production режим (с Nginx и SSL)
 ```bash
 chmod +x deploy.sh
 ./deploy.sh production
@@ -438,14 +481,25 @@ ssh root@your-server-ip "cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker
 
 ### ⚡ Быстрые команды
 
-Добавьте в `~/.bashrc` или `~/.zshrc` для удобства:
+#### Локальные алиасы для удобства:
+
+Добавьте в `~/.bashrc` или `~/.zshrc`:
 
 ```bash
-# Алиасы для управления ботом
-alias bot-status="ssh root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose ps'"
-alias bot-logs="ssh -t root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose logs -f bot'"
-alias bot-update="ssh -t root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./update_project.sh'"
-alias bot-restart="ssh root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose restart'"
+# Алиасы для локального управления
+alias bot-start="./run_bot.sh start"
+alias bot-stop="./run_bot.sh stop"
+alias bot-restart="./run_bot.sh restart"
+alias bot-status="./run_bot.sh status"
+alias bot-logs="./run_bot.sh logs"
+alias bot-rebuild="./run_bot.sh rebuild"
+alias bot-setup="./setup_tokens.sh"
+
+# Алиасы для удалённого управления
+alias remote-bot-status="ssh root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./run_bot.sh status'"
+alias remote-bot-logs="ssh -t root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./run_bot.sh logs'"
+alias remote-bot-update="ssh -t root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./update_project.sh'"
+alias remote-bot-restart="ssh -t root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./run_bot.sh restart'"
 ```
 
 После добавления выполните: `source ~/.bashrc`
