@@ -35,8 +35,8 @@ http://localhost:8000/api
       "match_mode": "prefix",
       "require_photo": true,
       "thread_name": "",
-      "reply_ok": "Спасибо за рецепт!",
-      "reply_need_photo": "Добавьте фото к рецепту",
+      "reply_ok": "Зараховано! 🦋",
+      "reply_need_photo": "Щоб зарахувати — додай фото і повтори з хештегом.",
       "reply_duplicate": "Такое фото уже было",
       "reply_pending": "Рецепт отправлен на модерацию",
       "moderation_enabled": true
@@ -55,7 +55,7 @@ http://localhost:8000/api
   "emoji": "✨",
   "delay": 5,
   "match_mode": "prefix",
-  "require_photo": false,
+  "require_photo": true,
   "thread_name": "",
   "reply_ok": "",
   "reply_need_photo": "",
@@ -145,8 +145,13 @@ GET /api/logs?tag=#рецепт&limit=10
 {
   "success": true,
   "data": {
-    "total_tags": 5,
     "total_logs": 150,
+    "total_tags": 5,
+    "tag_stats": [
+      {"tag": "#рецепт", "count": 45},
+      {"tag": "#новость", "count": 32},
+      {"tag": "#фото", "count": 28}
+    ],
     "moderation": {
       "pending": 3,
       "approved": 45,
@@ -186,7 +191,8 @@ GET /api/logs?tag=#рецепт&limit=10
       },
       "thread_name": "Кулинария",
       "status": "pending",
-      "created_at": "2025-09-05T18:30:00"
+      "created_at": "2025-09-05T18:30:00",
+      "updated_at": "2025-09-05T18:30:00"
     }
   ]
 }
@@ -278,7 +284,8 @@ GET /api/logs?tag=#рецепт&limit=10
   "success": true,
   "data": [
     {
-      "id": "queue123",
+      "id": 1,
+      "moderation_id": "abc123",
       "chat_id": -1001234567890,
       "message_id": 1001,
       "emoji": "🍓",
@@ -320,7 +327,7 @@ new_tag = {
     "emoji": "📰",
     "delay": 0,
     "match_mode": "prefix",
-    "require_photo": False,
+    "require_photo": True,
     "moderation_enabled": False
 }
 response = requests.post(f"{base_url}/tags", json=new_tag, headers=headers)
@@ -339,7 +346,7 @@ curl -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
 curl -X POST \
      -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
      -H "Content-Type: application/json" \
-     -d '{"tag":"#тест","emoji":"🧪","delay":0,"match_mode":"prefix","require_photo":false,"moderation_enabled":false}' \
+     -d '{"tag":"#тест","emoji":"🧪","delay":0,"match_mode":"prefix","require_photo":true,"moderation_enabled":false}' \
      http://localhost:8000/api/tags
 
 # Одобрить модерацию
