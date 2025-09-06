@@ -164,6 +164,41 @@ GET /api/logs?tag=#рецепт&limit=10
 
 ---
 
+## 📸 Структура медиафайлов
+
+Объект `media_info` содержит информацию о всех типах медиафайлов в сообщении:
+
+### Поля медиа-информации:
+- `has_photo` - есть ли фото (boolean)
+- `has_video` - есть ли видео (boolean)  
+- `has_document` - есть ли документ (boolean)
+- `has_audio` - есть ли аудио (boolean)
+- `has_sticker` - есть ли стикер (boolean)
+- `photo_file_id` - ID фото в Telegram (string или null)
+- `video_file_id` - ID видео в Telegram (string или null)
+- `document_file_id` - ID документа в Telegram (string или null)
+- `audio_file_id` - ID аудио в Telegram (string или null)
+- `sticker_file_id` - ID стикера в Telegram (string или null)
+- `media_file_ids` - массив всех ID медиафайлов (array)
+- `photo_file_ids` - массив ID фото (array)
+- `video_file_ids` - массив ID видео (array)
+- `document_file_ids` - массив ID документов (array)
+- `audio_file_ids` - массив ID аудио (array)
+- `sticker_file_ids` - массив ID стикеров (array)
+- `media_group_id` - ID медиагруппы (альбома) или null (string или null)
+- `media_type` - строка с типами медиа через запятую (string)
+
+### Примеры значений `media_type`:
+- `"photo"` - только фото
+- `"video"` - только видео
+- `"photo, video"` - фото и видео в одном сообщении
+- `"document"` - документ
+- `"audio"` - аудиофайл
+- `"sticker"` - стикер
+- `""` - нет медиафайлов
+
+---
+
 ## 🔍 Модерация сообщений
 
 ### GET /api/moderation
@@ -186,8 +221,23 @@ GET /api/logs?tag=#рецепт&limit=10
       "caption": "Домашняя паста",
       "media_info": {
         "has_photo": true,
+        "has_video": false,
+        "has_document": false,
+        "has_audio": false,
+        "has_sticker": false,
         "photo_file_id": "AgACAgIAAxkBAAIBYmXvZ...",
-        "has_video": false
+        "video_file_id": null,
+        "document_file_id": null,
+        "audio_file_id": null,
+        "sticker_file_id": null,
+        "media_file_ids": ["AgACAgIAAxkBAAIBYmXvZ..."],
+        "photo_file_ids": ["AgACAgIAAxkBAAIBYmXvZ..."],
+        "video_file_ids": [],
+        "document_file_ids": [],
+        "audio_file_ids": [],
+        "sticker_file_ids": [],
+        "media_group_id": null,
+        "media_type": "photo"
       },
       "thread_name": "Кулинария",
       "status": "pending",
