@@ -313,7 +313,8 @@ async function saveTag(event) {
         thread_name: formData.get('thread_name') || '',
         reply_duplicate: formData.get('reply_duplicate') || '',
         moderation_enabled: formData.get('moderation_enabled') === 'true',
-        reply_pending: formData.get('reply_pending') || ''
+        reply_pending: formData.get('reply_pending') || '',
+        counter_name: formData.get('counter_name') || ''
     };
     
     try {
@@ -369,6 +370,7 @@ function openTagModal(tagId = null) {
         document.getElementById('modalReplyDuplicate').value = '';
         document.getElementById('modalModerationEnabled').value = 'false';
         document.getElementById('modalReplyPending').value = '';
+        document.getElementById('modalCounterName').value = '';
     } else {
         // Редактирование существующего тега
         document.getElementById('modalTitle').textContent = 'Настроить тег';
@@ -396,6 +398,9 @@ function openTagModal(tagId = null) {
         // Настройки модерации
         document.getElementById('modalModerationEnabled').value = tag.moderation_enabled ? 'true' : 'false';
         document.getElementById('modalReplyPending').value = tag.reply_pending || '';
+        
+        // Название счетчика
+        document.getElementById('modalCounterName').value = tag.counter_name || '';
     }
     
     modal.style.display = 'block';
@@ -741,6 +746,7 @@ function createModerationItemElement(item) {
     const text = item.text ? escapeHtml(item.text) : '';
     const caption = item.caption ? escapeHtml(item.caption) : '';
     const threadName = item.thread_name ? escapeHtml(item.thread_name) : '';
+    const counterName = item.counter_name ? escapeHtml(item.counter_name) : '';
     
     element.innerHTML = `
         <div class="moderation-header">
@@ -749,6 +755,7 @@ function createModerationItemElement(item) {
                 <div class="moderation-tag">
                     <span>${emoji}</span>
                     <span>${tag}</span>
+                    ${counterName ? `<span class="counter-name">📊 ${counterName}</span>` : ''}
                 </div>
                 <div class="moderation-meta">
                     <span>🆔 <span class="moderation-id">${item.id}</span></span>

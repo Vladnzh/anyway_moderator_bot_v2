@@ -181,7 +181,8 @@
       "thread_name": "",
       "reply_duplicate": "",
       "moderation_enabled": false,
-      "reply_pending": ""
+      "reply_pending": "",
+      "counter_name": "Рецепты"
     }
   ]
 }</pre>
@@ -208,7 +209,8 @@
   "thread_name": "Название треда",
   "reply_duplicate": "Дублирование!",
   "moderation_enabled": false,
-  "reply_pending": ""
+  "reply_pending": "",
+  "counter_name": "Новый тег"
 }</pre>
                                 <h4>Ответ:</h4>
                                 <pre class="code-block">{
@@ -226,7 +228,8 @@
     "thread_name": "Название треда",
     "reply_duplicate": "Дублирование!",
     "moderation_enabled": false,
-    "reply_pending": ""
+    "reply_pending": "",
+    "counter_name": "Новый тег"
   }
 }</pre>
                                 <button class="test-btn" onclick="showTestForm('POST', '/api/tags', 'tag')">🧪 Тестировать</button>
@@ -1162,6 +1165,12 @@ curl -X DELETE \
                         <label for="modalReplyPending">Сообщение — ожидание модерации:</label>
                         <input type="text" id="modalReplyPending" name="reply_pending" placeholder="Ваше сообщение отправлено на модерацию..." />
                         <small>Сообщение при постановке в очередь модерации (оставьте пустым для отключения)</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modalCounterName">📊 Название счетчика:</label>
+                        <input type="text" id="modalCounterName" name="counter_name" placeholder="Например: Рецепты, Фото дня..." />
+                        <small>Название для отображения в карточках модерации (необязательно)</small>
                     </div>
                 </div>
 

@@ -44,6 +44,7 @@ class TagConfig(BaseModel):
     reply_duplicate: str = ""  # Сообщение при дублировании фото (пустое = без сообщения)
     moderation_enabled: bool = False  # Требовать подтверждение модератора
     reply_pending: str = ""  # Сообщение о постановке в очередь модерации
+    counter_name: str = ""  # Название счетчика для отображения в модерации
 
 class ModerationItem(BaseModel):
     id: str  # Уникальный ID записи модерации
@@ -57,6 +58,7 @@ class ModerationItem(BaseModel):
     caption: str
     media_info: Optional[Dict[str, Any]] = None
     thread_name: str
+    counter_name: str = ""  # Название счетчика тега
     created_at: str
     status: Literal["pending", "approved", "rejected"] = "pending"
 
@@ -75,6 +77,7 @@ class TagUpdate(BaseModel):
     reply_duplicate: str = ""
     moderation_enabled: bool = False
     reply_pending: str = ""
+    counter_name: str = ""
 
 class ApiResponse(BaseModel):
     success: bool
@@ -131,7 +134,8 @@ def create_tag(tag: TagUpdate, _: bool = Depends(require_api_admin)):
             'thread_name': tag.thread_name.strip(),
             'reply_duplicate': tag.reply_duplicate.strip(),
             'moderation_enabled': tag.moderation_enabled,
-            'reply_pending': tag.reply_pending.strip()
+            'reply_pending': tag.reply_pending.strip(),
+            'counter_name': tag.counter_name.strip()
         }
         
         tag_id = db.create_tag(tag_data)
@@ -160,7 +164,8 @@ def update_tag(tag_id: str, tag: TagUpdate, _: bool = Depends(require_api_admin)
             'thread_name': tag.thread_name.strip(),
             'reply_duplicate': tag.reply_duplicate.strip(),
             'moderation_enabled': tag.moderation_enabled,
-            'reply_pending': tag.reply_pending.strip()
+            'reply_pending': tag.reply_pending.strip(),
+            'counter_name': tag.counter_name.strip()
         }
         
         success = db.update_tag(tag_id, tag_data)

@@ -39,7 +39,8 @@ http://localhost:8000/api
       "reply_need_photo": "Щоб зарахувати — додай фото і повтори з хештегом.",
       "reply_duplicate": "Такое фото уже было",
       "reply_pending": "Рецепт отправлен на модерацию",
-      "moderation_enabled": true
+      "moderation_enabled": true,
+      "counter_name": "Рецепты"
     }
   ]
 }
@@ -61,7 +62,8 @@ http://localhost:8000/api
   "reply_need_photo": "",
   "reply_duplicate": "",
   "reply_pending": "",
-  "moderation_enabled": false
+  "moderation_enabled": false,
+  "counter_name": ""
 }
 ```
 
@@ -190,6 +192,7 @@ GET /api/logs?tag=#рецепт&limit=10
         "has_video": false
       },
       "thread_name": "Кулинария",
+      "counter_name": "Рецепты",
       "status": "pending",
       "created_at": "2025-09-05T18:30:00",
       "updated_at": "2025-09-05T18:30:00"

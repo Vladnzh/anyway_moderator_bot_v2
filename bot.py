@@ -134,7 +134,8 @@ def add_to_moderation_queue(message, matched_tag: Dict[str, Any], media_info: Di
             'text': message.text or '',
             'caption': message.caption or '',
             'media_info': media_info,
-            'thread_name': thread_name
+            'thread_name': thread_name,
+            'counter_name': matched_tag.get('counter_name', '')
         }
         
         item_id = db.add_moderation_item(item_data)

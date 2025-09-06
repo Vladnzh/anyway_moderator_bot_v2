@@ -55,6 +55,7 @@ class Database:
                     reply_duplicate TEXT DEFAULT '',
                     moderation_enabled BOOLEAN DEFAULT FALSE,
                     reply_pending TEXT DEFAULT '',
+                    counter_name TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -91,6 +92,7 @@ class Database:
                     caption TEXT DEFAULT '',
                     media_info TEXT DEFAULT '{}',
                     thread_name TEXT DEFAULT '',
+                    counter_name TEXT DEFAULT '',
                     status TEXT DEFAULT 'pending',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -129,6 +131,21 @@ class Database:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_moderation_status ON moderation_queue(status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_media_hash ON media_hashes(file_hash)")
             
+            # Миграция: добавляем поле counter_name если его нет
+            try:
+                conn.execute("ALTER TABLE tags ADD COLUMN counter_name TEXT DEFAULT ''")
+                logger.info("✅ Добавлено поле counter_name в таблицу tags")
+            except sqlite3.OperationalError:
+                # Поле уже существует
+                pass
+            
+            try:
+                conn.execute("ALTER TABLE moderation_queue ADD COLUMN counter_name TEXT DEFAULT ''")
+                logger.info("✅ Добавлено поле counter_name в таблицу moderation_queue")
+            except sqlite3.OperationalError:
+                # Поле уже существует
+                pass
+            
             conn.commit()
             logger.info("✅ База данных инициализирована")
 
@@ -153,14 +170,15 @@ class Database:
             conn.execute("""
                 INSERT INTO tags (id, tag, emoji, delay, match_mode, require_photo, 
                                 reply_ok, reply_need_photo, thread_name, reply_duplicate,
-                                moderation_enabled, reply_pending)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                moderation_enabled, reply_pending, counter_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 tag_id, tag_data['tag'], tag_data['emoji'], tag_data.get('delay', 0),
                 tag_data.get('match_mode', 'equals'), tag_data.get('require_photo', True),
                 tag_data.get('reply_ok', ''), tag_data.get('reply_need_photo', ''),
                 tag_data.get('thread_name', ''), tag_data.get('reply_duplicate', ''),
-                tag_data.get('moderation_enabled', False), tag_data.get('reply_pending', '')
+                tag_data.get('moderation_enabled', False), tag_data.get('reply_pending', ''),
+                tag_data.get('counter_name', '')
             ))
             conn.commit()
         return tag_id
@@ -172,7 +190,7 @@ class Database:
                 UPDATE tags SET 
                     tag = ?, emoji = ?, delay = ?, match_mode = ?, require_photo = ?,
                     reply_ok = ?, reply_need_photo = ?, thread_name = ?, reply_duplicate = ?,
-                    moderation_enabled = ?, reply_pending = ?, updated_at = CURRENT_TIMESTAMP
+                    moderation_enabled = ?, reply_pending = ?, counter_name = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (
                 tag_data['tag'], tag_data['emoji'], tag_data.get('delay', 0),
@@ -180,7 +198,7 @@ class Database:
                 tag_data.get('reply_ok', ''), tag_data.get('reply_need_photo', ''),
                 tag_data.get('thread_name', ''), tag_data.get('reply_duplicate', ''),
                 tag_data.get('moderation_enabled', False), tag_data.get('reply_pending', ''),
-                tag_id
+                tag_data.get('counter_name', ''), tag_id
             ))
             conn.commit()
             return cursor.rowcount > 0
@@ -268,15 +286,15 @@ class Database:
         with self.get_connection() as conn:
             conn.execute("""
                 INSERT INTO moderation_queue (id, chat_id, message_id, user_id, username,
-                                            tag, emoji, text, caption, media_info, thread_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                            tag, emoji, text, caption, media_info, thread_name, counter_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 item_id, item_data['chat_id'], item_data['message_id'],
                 item_data['user_id'], item_data.get('username', ''),
                 item_data['tag'], item_data['emoji'],
                 item_data.get('text', ''), item_data.get('caption', ''),
                 json.dumps(item_data.get('media_info', {})),
-                item_data.get('thread_name', '')
+                item_data.get('thread_name', ''), item_data.get('counter_name', '')
             ))
             conn.commit()
         return item_id
