@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import uuid
 import logging
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -199,9 +200,12 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tag_text = tag['tag'].lower()
         
         # Проверяем соответствие режима поиска
-        if tag['match_mode'] == 'equals' and tag_text == text.strip():
-            matched_tag = tag
-            break
+        if tag['match_mode'] == 'equals':
+            # Ищем точное совпадение слова (с границами слов)
+            pattern = r'\b' + re.escape(tag_text) + r'\b'
+            if re.search(pattern, text):
+                matched_tag = tag
+                break
         elif tag['match_mode'] == 'prefix' and text.startswith(tag_text):
             matched_tag = tag
             break
