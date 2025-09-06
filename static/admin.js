@@ -995,67 +995,309 @@ function generateMediaPreview(mediaInfo) {
     
     const previews = [];
     
-    // Превью фото
-    if (mediaInfo.has_photo && mediaInfo.photo_file_id) {
-        previews.push(`
-            <div class="moderation-media-preview" onclick="showModerationMedia('${mediaInfo.photo_file_id}', 'photo')">
-                <div class="media-preview-placeholder">
-                    <div class="media-icon">🖼️</div>
-                    <div class="media-text">Нажмите для просмотра фото</div>
+    // Превью фото (все фото из массива)
+    if (mediaInfo.has_photo && mediaInfo.photo_file_ids && mediaInfo.photo_file_ids.length > 0) {
+        mediaInfo.photo_file_ids.forEach((fileId, index) => {
+            const photoCount = mediaInfo.photo_file_ids.length;
+            const label = photoCount > 1 ? `Фото ${index + 1}/${photoCount}` : 'Нажмите для просмотра фото';
+            
+            previews.push(`
+                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.photo_file_ids).replace(/"/g, '&quot;')}, 'photo', ${index})">
+                    <div class="media-preview-placeholder">
+                        <div class="media-icon">🖼️</div>
+                        <div class="media-text">${label}</div>
+                    </div>
                 </div>
-            </div>
-        `);
+            `);
+        });
     }
     
-    // Превью видео
-    if (mediaInfo.has_video && mediaInfo.video_file_id) {
-        previews.push(`
-            <div class="moderation-media-preview" onclick="showModerationMedia('${mediaInfo.video_file_id}', 'video')">
-                <div class="media-preview-placeholder">
-                    <div class="media-icon">🎥</div>
-                    <div class="media-text">Нажмите для просмотра видео</div>
+    // Превью видео (все видео из массива)
+    if (mediaInfo.has_video && mediaInfo.video_file_ids && mediaInfo.video_file_ids.length > 0) {
+        mediaInfo.video_file_ids.forEach((fileId, index) => {
+            const videoCount = mediaInfo.video_file_ids.length;
+            const label = videoCount > 1 ? `Видео ${index + 1}/${videoCount}` : 'Нажмите для просмотра видео';
+            
+            previews.push(`
+                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.video_file_ids).replace(/"/g, '&quot;')}, 'video', ${index})">
+                    <div class="media-preview-placeholder">
+                        <div class="media-icon">🎥</div>
+                        <div class="media-text">${label}</div>
+                    </div>
                 </div>
-            </div>
-        `);
+            `);
+        });
     }
     
-    // Превью документов
-    if (mediaInfo.has_document && mediaInfo.document_file_id) {
-        previews.push(`
-            <div class="moderation-media-preview" onclick="showModerationMedia('${mediaInfo.document_file_id}', 'document')">
-                <div class="media-preview-placeholder">
-                    <div class="media-icon">📄</div>
-                    <div class="media-text">Нажмите для просмотра документа</div>
+    // Превью документов (все документы из массива)
+    if (mediaInfo.has_document && mediaInfo.document_file_ids && mediaInfo.document_file_ids.length > 0) {
+        mediaInfo.document_file_ids.forEach((fileId, index) => {
+            const docCount = mediaInfo.document_file_ids.length;
+            const label = docCount > 1 ? `Документ ${index + 1}/${docCount}` : 'Нажмите для просмотра документа';
+            
+            previews.push(`
+                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.document_file_ids).replace(/"/g, '&quot;')}, 'document', ${index})">
+                    <div class="media-preview-placeholder">
+                        <div class="media-icon">📄</div>
+                        <div class="media-text">${label}</div>
+                    </div>
                 </div>
-            </div>
-        `);
+            `);
+        });
     }
     
-    // Превью аудио
-    if (mediaInfo.has_audio && mediaInfo.audio_file_id) {
-        previews.push(`
-            <div class="moderation-media-preview" onclick="showModerationMedia('${mediaInfo.audio_file_id}', 'audio')">
-                <div class="media-preview-placeholder">
-                    <div class="media-icon">🎵</div>
-                    <div class="media-text">Нажмите для прослушивания аудио</div>
+    // Превью аудио (все аудио из массива)
+    if (mediaInfo.has_audio && mediaInfo.audio_file_ids && mediaInfo.audio_file_ids.length > 0) {
+        mediaInfo.audio_file_ids.forEach((fileId, index) => {
+            const audioCount = mediaInfo.audio_file_ids.length;
+            const label = audioCount > 1 ? `Аудио ${index + 1}/${audioCount}` : 'Нажмите для прослушивания аудио';
+            
+            previews.push(`
+                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.audio_file_ids).replace(/"/g, '&quot;')}, 'audio', ${index})">
+                    <div class="media-preview-placeholder">
+                        <div class="media-icon">🎵</div>
+                        <div class="media-text">${label}</div>
+                    </div>
                 </div>
-            </div>
-        `);
+            `);
+        });
     }
     
-    // Превью стикеров
-    if (mediaInfo.has_sticker && mediaInfo.sticker_file_id) {
-        previews.push(`
-            <div class="moderation-media-preview" onclick="showModerationMedia('${mediaInfo.sticker_file_id}', 'sticker')">
-                <div class="media-preview-placeholder">
-                    <div class="media-icon">🎭</div>
-                    <div class="media-text">Нажмите для просмотра стикера</div>
+    // Превью стикеров (все стикеры из массива)
+    if (mediaInfo.has_sticker && mediaInfo.sticker_file_ids && mediaInfo.sticker_file_ids.length > 0) {
+        mediaInfo.sticker_file_ids.forEach((fileId, index) => {
+            const stickerCount = mediaInfo.sticker_file_ids.length;
+            const label = stickerCount > 1 ? `Стикер ${index + 1}/${stickerCount}` : 'Нажмите для просмотра стикера';
+            
+            previews.push(`
+                <div class="moderation-media-preview" onclick="showModerationMediaGroup(${JSON.stringify(mediaInfo.sticker_file_ids).replace(/"/g, '&quot;')}, 'sticker', ${index})">
+                    <div class="media-preview-placeholder">
+                        <div class="media-icon">🎭</div>
+                        <div class="media-text">${label}</div>
+                    </div>
                 </div>
-            </div>
-        `);
+            `);
+        });
     }
     
     return previews.length > 0 ? `<div class="moderation-media-container">${previews.join('')}</div>` : '';
+}
+
+async function showModerationMediaGroup(fileIds, mediaType, currentIndex = 0) {
+    try {
+        // Создаем модальное окно для группы медиа
+        const modal = document.createElement('div');
+        modal.className = 'media-modal';
+        
+        const mediaTypeNames = {
+            'photo': '🖼️ Фото из модерации',
+            'video': '🎥 Видео из модерации', 
+            'document': '📄 Документ из модерации',
+            'audio': '🎵 Аудио из модерации',
+            'sticker': '🎭 Стикер из модерации'
+        };
+        
+        const totalCount = fileIds.length;
+        const title = totalCount > 1 
+            ? `${mediaTypeNames[mediaType] || '📎 Медиафайл из модерации'} (${currentIndex + 1}/${totalCount})`
+            : mediaTypeNames[mediaType] || '📎 Медиафайл из модерации';
+        
+        modal.innerHTML = `
+            <div class="media-modal-content">
+                <div class="media-modal-header">
+                    <h3>${title}</h3>
+                    <div class="media-modal-controls">
+                        ${totalCount > 1 ? `
+                            <button class="media-nav-btn" onclick="navigateMedia(-1)" ${currentIndex === 0 ? 'disabled' : ''}>‹ Пред</button>
+                            <span class="media-counter">${currentIndex + 1} / ${totalCount}</span>
+                            <button class="media-nav-btn" onclick="navigateMedia(1)" ${currentIndex === totalCount - 1 ? 'disabled' : ''}>След ›</button>
+                        ` : ''}
+                        <button class="media-modal-close" onclick="closeMediaModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="media-modal-body">
+                    <div class="media-loading">⏳ Загрузка медиа из Telegram...</div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Сохраняем данные для навигации
+        window.currentMediaGroup = {
+            fileIds: fileIds,
+            mediaType: mediaType,
+            currentIndex: currentIndex
+        };
+        
+        // Закрытие по клику вне модального окна
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeMediaModal();
+            }
+        });
+        
+        // Закрытие по Escape
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeMediaModal();
+                document.removeEventListener('keydown', handleEscape);
+            }
+            // Навигация стрелками
+            if (e.key === 'ArrowLeft' && currentIndex > 0) {
+                navigateMedia(-1);
+            }
+            if (e.key === 'ArrowRight' && currentIndex < totalCount - 1) {
+                navigateMedia(1);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+        
+        // Загружаем текущий медиафайл
+        await loadMediaInModal(fileIds[currentIndex], mediaType);
+        
+    } catch (error) {
+        console.error('Ошибка показа медиагруппы:', error);
+        showNotification('Ошибка загрузки медиа', 'error');
+    }
+}
+
+async function loadMediaInModal(fileId, mediaType) {
+    try {
+        const response = await apiRequest('GET', `/media/file/${fileId}`);
+        const mediaBody = document.querySelector('.media-modal-body');
+        
+        if (!mediaBody) return;
+        
+        if (response.success) {
+            if (mediaType === 'photo') {
+                mediaBody.innerHTML = `
+                    <img src="${response.file_url}" 
+                         alt="Фото из модерации" 
+                         class="media-preview-image"
+                         onload="this.style.opacity=1"
+                         style="opacity:0; transition: opacity 0.3s ease;">
+                    <p class="media-info">
+                        📁 ${response.file_path}<br>
+                        📊 Размер: ${formatFileSize(response.file_size)}
+                    </p>
+                `;
+            } else if (mediaType === 'video') {
+                mediaBody.innerHTML = `
+                    <video controls class="media-preview-video" preload="metadata">
+                        <source src="${response.file_url}" type="video/mp4">
+                        Ваш браузер не поддерживает видео.
+                    </video>
+                    <p class="media-info">
+                        📁 ${response.file_path}<br>
+                        📊 Размер: ${formatFileSize(response.file_size)}
+                    </p>
+                `;
+            } else if (mediaType === 'audio') {
+                mediaBody.innerHTML = `
+                    <audio controls class="media-preview-audio">
+                        <source src="${response.file_url}">
+                        Ваш браузер не поддерживает аудио.
+                    </audio>
+                    <p class="media-info">
+                        📁 ${response.file_path}<br>
+                        📊 Размер: ${formatFileSize(response.file_size)}
+                    </p>
+                `;
+            } else if (mediaType === 'sticker') {
+                mediaBody.innerHTML = `
+                    <img src="${response.file_url}" 
+                         alt="Стикер из модерации" 
+                         class="media-preview-sticker"
+                         onload="this.style.opacity=1"
+                         style="opacity:0; transition: opacity 0.3s ease;">
+                    <p class="media-info">
+                        📁 ${response.file_path}<br>
+                        📊 Размер: ${formatFileSize(response.file_size)}
+                    </p>
+                `;
+            } else {
+                // Документы и другие файлы
+                mediaBody.innerHTML = `
+                    <div class="media-preview-document">
+                        <div class="document-icon">📄</div>
+                        <div class="document-info">
+                            <h4>Документ из модерации</h4>
+                            <p>📁 ${response.file_path}</p>
+                            <p>📊 Размер: ${formatFileSize(response.file_size)}</p>
+                            <a href="${response.file_url}" target="_blank" class="btn-download">
+                                ⬇️ Скачать файл
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+            mediaBody.innerHTML = `
+                <div class="media-error">
+                    ❌ Ошибка загрузки медиа: ${response.message}
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки медиа в модальном окне:', error);
+        const mediaBody = document.querySelector('.media-modal-body');
+        if (mediaBody) {
+            mediaBody.innerHTML = `
+                <div class="media-error">
+                    ❌ Ошибка загрузки медиа
+                </div>
+            `;
+        }
+    }
+}
+
+function navigateMedia(direction) {
+    if (!window.currentMediaGroup) return;
+    
+    const { fileIds, mediaType, currentIndex } = window.currentMediaGroup;
+    const newIndex = currentIndex + direction;
+    
+    if (newIndex < 0 || newIndex >= fileIds.length) return;
+    
+    // Обновляем индекс
+    window.currentMediaGroup.currentIndex = newIndex;
+    
+    // Обновляем заголовок и кнопки
+    const modal = document.querySelector('.media-modal');
+    if (modal) {
+        const header = modal.querySelector('.media-modal-header h3');
+        const prevBtn = modal.querySelector('.media-nav-btn:first-of-type');
+        const nextBtn = modal.querySelector('.media-nav-btn:last-of-type');
+        const counter = modal.querySelector('.media-counter');
+        
+        const mediaTypeNames = {
+            'photo': '🖼️ Фото из модерации',
+            'video': '🎥 Видео из модерации', 
+            'document': '📄 Документ из модерации',
+            'audio': '🎵 Аудио из модерации',
+            'sticker': '🎭 Стикер из модерации'
+        };
+        
+        if (header) {
+            header.textContent = `${mediaTypeNames[mediaType] || '📎 Медиафайл из модерации'} (${newIndex + 1}/${fileIds.length})`;
+        }
+        
+        if (prevBtn) {
+            prevBtn.disabled = newIndex === 0;
+        }
+        
+        if (nextBtn) {
+            nextBtn.disabled = newIndex === fileIds.length - 1;
+        }
+        
+        if (counter) {
+            counter.textContent = `${newIndex + 1} / ${fileIds.length}`;
+        }
+    }
+    
+    // Загружаем новый медиафайл
+    loadMediaInModal(fileIds[newIndex], mediaType);
 }
 
 async function showModerationMedia(fileId, mediaType) {
@@ -1255,5 +1497,10 @@ function closeMediaModal() {
     const modal = document.querySelector('.media-modal');
     if (modal) {
         modal.remove();
+    }
+    
+    // Очищаем данные навигации
+    if (window.currentMediaGroup) {
+        delete window.currentMediaGroup;
     }
 }
