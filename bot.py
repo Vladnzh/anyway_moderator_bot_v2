@@ -201,14 +201,17 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Проверяем соответствие режима поиска
         if tag['match_mode'] == 'equals':
-            # Ищем точное совпадение слова (с границами слов)
+            # Режим 1: Ищем точное совпадение слова (с границами слов)
             pattern = r'\b' + re.escape(tag_text) + r'\b'
             if re.search(pattern, text):
                 matched_tag = tag
                 break
-        elif tag['match_mode'] == 'prefix' and text.startswith(tag_text):
-            matched_tag = tag
-            break
+        elif tag['match_mode'] == 'prefix':
+            # Режим 2: Ищем тег как префикс (начало слова)
+            pattern = r'\b' + re.escape(tag_text) + r'\w*'
+            if re.search(pattern, text):
+                matched_tag = tag
+                break
     
     if not matched_tag:
         return
