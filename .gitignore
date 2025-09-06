@@ -38,10 +38,13 @@ env/
 .env.local
 .env.production
 
-# Database
+# Database files (но не папку data/)
 *.db
 *.sqlite
 *.sqlite3
+# Исключаем содержимое папки data, но не саму папку
+data/*
+!data/.gitkeep
 
 # Logs
 *.log

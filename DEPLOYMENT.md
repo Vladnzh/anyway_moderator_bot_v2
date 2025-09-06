@@ -319,14 +319,147 @@ services:
 # Для продвинутого мониторинга
 ```
 
-## 🔄 Обновление
+## 🔄 Обновление проекта
+
+### 🚀 Автоматическое обновление (рекомендуется)
+
+#### На сервере:
+```bash
+cd /opt/moderator-bot/anyway_moderator_bot_v2
+./update_project.sh
+```
+
+#### Удалённо через SSH:
+```bash
+# Простое обновление
+ssh root@your-server-ip "cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./update_project.sh"
+
+# С выводом логов в реальном времени
+ssh -t root@your-server-ip "cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./update_project.sh"
+
+# Через алиас (настройте один раз)
+alias update-bot="ssh -t root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./update_project.sh'"
+update-bot
+```
+
+### 🛡️ Что делает скрипт обновления:
+
+1. **💾 Создаёт резервную копию** базы данных с временной меткой
+2. **📥 Получает обновления** из Git репозитория  
+3. **🛑 Останавливает** контейнеры
+4. **🏗️ Пересобирает** Docker образы
+5. **🚀 Запускает** обновлённые контейнеры
+6. **🧪 Проверяет** работоспособность API
+7. **📋 Показывает** статус и логи
+
+### 📁 Сохранение данных
+
+✅ **Сохраняется при обновлениях:**
+- 🏷️ Все созданные теги и настройки
+- 📊 История логов и статистика  
+- 🔄 Очередь модерации
+- 🗄️ База данных SQLite (`./data/bot_data.db`)
+
+❌ **Обновляется:**
+- 🔧 Код приложения
+- 🐳 Docker образы
+- 📝 Конфигурационные файлы
+
+### 🔧 Ручное обновление
+
+Если автоматический скрипт недоступен:
 
 ```bash
-# Получение обновлений
+# На сервере
+cd /opt/moderator-bot/anyway_moderator_bot_v2
+
+# 1. Резервная копия
+cp data/bot_data.db data/bot_data.db.backup.$(date +%Y%m%d_%H%M%S)
+
+# 2. Получение обновлений
+git stash push -m "Auto-stash before update"
 git pull origin main
 
-# Пересборка и перезапуск
-./deploy.sh production
+# 3. Перезапуск
+docker compose down
+docker compose build
+docker compose up -d
+```
+
+### 🌐 Удалённое обновление через веб-интерфейс
+
+Создайте простой веб-хук для обновления:
+
+```bash
+# Создайте скрипт webhook.sh на сервере
+cat > /opt/moderator-bot/webhook.sh << 'EOF'
+#!/bin/bash
+cd /opt/moderator-bot/anyway_moderator_bot_v2
+./update_project.sh > /tmp/update.log 2>&1
+EOF
+
+chmod +x /opt/moderator-bot/webhook.sh
+
+# Запуск через curl
+curl -X POST http://your-server-ip:9000/webhook
+```
+
+### 📊 Мониторинг после обновления
+
+```bash
+# Проверка статуса
+ssh root@your-server-ip "cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose ps"
+
+# Просмотр логов
+ssh root@your-server-ip "cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose logs -f bot"
+
+# Проверка API
+curl -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  "http://your-server-ip:8000/api/stats"
+```
+
+### 🚨 Восстановление при проблемах
+
+Если обновление прошло неудачно:
+
+```bash
+# 1. Остановить контейнеры
+ssh root@your-server-ip "cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose down"
+
+# 2. Восстановить базу данных
+ssh root@your-server-ip "cd /opt/moderator-bot/anyway_moderator_bot_v2 && cp data/bot_data.db.backup.* data/bot_data.db"
+
+# 3. Откатить Git изменения
+ssh root@your-server-ip "cd /opt/moderator-bot/anyway_moderator_bot_v2 && git reset --hard HEAD~1"
+
+# 4. Запустить заново
+ssh root@your-server-ip "cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose up -d"
+```
+
+### ⚡ Быстрые команды
+
+Добавьте в `~/.bashrc` или `~/.zshrc` для удобства:
+
+```bash
+# Алиасы для управления ботом
+alias bot-status="ssh root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose ps'"
+alias bot-logs="ssh -t root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose logs -f bot'"
+alias bot-update="ssh -t root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./update_project.sh'"
+alias bot-restart="ssh root@your-server-ip 'cd /opt/moderator-bot/anyway_moderator_bot_v2 && docker compose restart'"
+```
+
+После добавления выполните: `source ~/.bashrc`
+
+### 📋 Регулярное обновление
+
+Настройте автоматическое обновление через cron:
+
+```bash
+# На сервере добавьте в crontab
+ssh root@your-server-ip "crontab -e"
+
+# Добавьте строку (обновление каждое воскресенье в 3:00)
+0 3 * * 0 cd /opt/moderator-bot/anyway_moderator_bot_v2 && ./update_project.sh >> /var/log/bot-update.log 2>&1
 ```
 
 ## 📞 Поддержка

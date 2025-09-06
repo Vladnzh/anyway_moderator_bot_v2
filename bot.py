@@ -272,6 +272,22 @@ async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await process_reaction_queue(context)
     await update.message.reply_text("🧪 Очередь реакций обработана")
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик ошибок"""
+    logger.error(f"🚨 Ошибка в боте: {context.error}")
+    
+    # Логируем дополнительную информацию если есть update
+    if isinstance(update, Update) and update.effective_message:
+        logger.error(f"📝 Сообщение: {update.effective_message.text}")
+        logger.error(f"👤 Пользователь: {update.effective_user.username if update.effective_user else 'Unknown'}")
+        logger.error(f"💬 Чат: {update.effective_chat.id if update.effective_chat else 'Unknown'}")
+    
+    # Записываем в лог событий
+    log_bot_event('error', {
+        'message': str(context.error),
+        'update_type': type(update).__name__ if update else 'Unknown'
+    })
+
 def main():
     """Основная функция"""
     print("🚀 Запуск бота с SQLite базой данных...")
@@ -291,6 +307,9 @@ def main():
     # Добавляем обработчики
     app.add_handler(MessageHandler(filters.ALL, handle_any))
     app.add_handler(CommandHandler("test", test_command))
+    
+    # Добавляем обработчик ошибок
+    app.add_error_handler(error_handler)
     
     # Настраиваем периодическую обработку очереди реакций
     try:
