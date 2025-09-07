@@ -43,9 +43,9 @@
    ./setup-shared-secret.sh
    ```
 
-6. **Настройте URL бэкенда (опционально):**
+6. **Настройте URL серверов (опционально):**
    ```bash
-   ./setup-backend-url.sh
+   ./setup-urls.sh
    ```
 
 7. **Запустите бота:**
@@ -75,7 +75,7 @@
 ./setup-bot-token.sh      # Настроить BOT_TOKEN
 ./setup-admin-token.sh    # Настроить ADMIN_TOKEN
 ./setup-shared-secret.sh  # Настроить BOT_SHARED_SECRET (для привязки аккаунтов)
-./setup-backend-url.sh    # Настроить BACKEND_URL (для внешних API)
+./setup-urls.sh           # Настроить ADMIN_URL и FRONTEND_URL
 ./start.sh                # Запуск/перезапуск (база сохраняется)
 ./stop.sh                 # Остановка (база сохраняется)
 ```

@@ -41,6 +41,7 @@ async def root():
         "message": "Test Account Linking Server",
         "endpoints": {
             "POST /api/telegram/link": "Привязка Telegram аккаунта",
+            "POST /api/telegram/reaction": "Обработка данных о реакциях",
             "POST /generate-code": "Генерация тестового кода",
             "GET /codes": "Список активных кодов"
         }
@@ -140,6 +141,33 @@ async def link_telegram(
     print(f"✅ Аккаунт привязан: {data.tg_user_id} -> {code_data['user_id']}")
     
     return {"status": "linked"}
+
+@app.post("/api/telegram/reaction")
+async def handle_reaction(
+    data: dict,
+    x_signature: str = Header(alias="X-Signature")
+):
+    """Обработка данных о реакции"""
+    
+    # Проверяем подпись
+    body = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
+    if not verify_signature(body, x_signature):
+        print(f"❌ Неверная подпись для реакции: {x_signature}")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    
+    print(f"✅ Получена реакция от пользователя {data.get('tg_user_id')}")
+    print(f"📝 Данные реакции:")
+    print(f"   👤 Пользователь: {data.get('username', 'N/A')} ({data.get('first_name', '')} {data.get('last_name', '')})")
+    print(f"   🏷️ Тег: {data.get('tag')}")
+    print(f"   📊 Счетчик: {data.get('counter_name')}")
+    print(f"   😀 Эмодзи: {data.get('emoji')}")
+    print(f"   💬 Чат: {data.get('chat_id')}")
+    print(f"   📝 Текст: {data.get('text', 'N/A')}")
+    print(f"   🖼️ Медиа: фото={data.get('has_photo')}, видео={data.get('has_video')}")
+    print(f"   🕐 Время: {data.get('timestamp')}")
+    print("---")
+    
+    return {"status": "processed"}
 
 if __name__ == "__main__":
     print("🚀 Запуск тестового сервера для привязки аккаунтов")

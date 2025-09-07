@@ -36,9 +36,12 @@ if not BOT_TOKEN:
     exit(1)
 
 BOT_SHARED_SECRET = os.getenv("BOT_SHARED_SECRET")
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+ADMIN_URL = os.getenv("ADMIN_URL", "http://localhost:8000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 logger.info(f"🔑 BOT_TOKEN найден: {BOT_TOKEN[:10]}...{BOT_TOKEN[-4:]}")
+logger.info(f"🔗 ADMIN_URL: {ADMIN_URL}")
+logger.info(f"🌐 FRONTEND_URL: {FRONTEND_URL}")
 if BOT_SHARED_SECRET:
     logger.info(f"🔐 BOT_SHARED_SECRET найден: {BOT_SHARED_SECRET[:8]}...")
 else:
@@ -78,7 +81,7 @@ async def link_telegram_account(code: str, user_id: int, username: str, first_na
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{BACKEND_URL}/api/telegram/link",
+                f"{FRONTEND_URL}/api/telegram/link",
                 data=json_data,
                 headers={
                     "Content-Type": "application/json",
@@ -97,6 +100,70 @@ async def link_telegram_account(code: str, user_id: int, username: str, first_na
         return {"success": False, "error": f"Ошибка сети: {e}"}
     except Exception as e:
         logger.error(f"❌ Неожиданная ошибка: {e}")
+        return {"success": False, "error": f"Неожиданная ошибка: {e}"}
+
+async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: Dict[str, Any], thread_name: str) -> Dict[str, Any]:
+    """Отправить данные о реакции на бэкенд"""
+    if not BOT_SHARED_SECRET:
+        logger.warning("⚠️ BOT_SHARED_SECRET не настроен - данные о реакции не отправляются")
+        return {"success": False, "error": "BOT_SHARED_SECRET не настроен"}
+    
+    # Подготавливаем данные для отправки
+    payload = {
+        "tg_user_id": str(message.from_user.id),
+        "username": message.from_user.username or "",
+        "first_name": message.from_user.first_name or "",
+        "last_name": message.from_user.last_name or "",
+        "tag": matched_tag['tag'],
+        "counter_name": matched_tag.get('counter_name', ''),
+        "emoji": matched_tag['emoji'],
+        "chat_id": str(message.chat_id),
+        "message_id": str(message.message_id),
+        "text": message.text or "",
+        "caption": message.caption or "",
+        "thread_name": thread_name,
+        "has_photo": media_info.get('has_photo', False),
+        "has_video": media_info.get('has_video', False),
+        "media_file_ids": media_info.get('media_file_ids', []),
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Создаем JSON строку и подпись
+    json_data = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+    signature = create_hmac_signature(json_data, BOT_SHARED_SECRET)
+    
+    # Отправляем запрос
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{ADMIN_URL}/api/telegram/reaction",
+                data=json_data,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Signature": signature
+                },
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                if response.status == 200:
+                    response_data = await response.json()
+                    logger.info(f"✅ Данные о реакции отправлены: user_id={message.from_user.id}, tag={matched_tag['tag']}")
+                    return {
+                        "success": True,
+                        "status_code": response.status,
+                        "data": response_data
+                    }
+                else:
+                    logger.warning(f"⚠️ Бэкенд вернул код {response.status} для реакции")
+                    return {
+                        "success": False,
+                        "status_code": response.status,
+                        "data": {}
+                    }
+    except aiohttp.ClientError as e:
+        logger.error(f"❌ Ошибка HTTP запроса при отправке реакции: {e}")
+        return {"success": False, "error": f"Ошибка сети: {e}"}
+    except Exception as e:
+        logger.error(f"❌ Неожиданная ошибка при отправке реакции: {e}")
         return {"success": False, "error": f"Неожиданная ошибка: {e}"}
 
 async def get_media_info(message) -> Dict[str, Any]:
@@ -328,6 +395,9 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'user': message.from_user.username or message.from_user.first_name,
             'tag': matched_tag['tag']
         })
+        
+        # Отправляем данные о реакции на бэкенд
+        await send_reaction_data(message, matched_tag, media_info, thread_name)
         
         # Отправляем сообщение об успехе
         if matched_tag['reply_ok']:

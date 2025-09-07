@@ -19,16 +19,16 @@
 
 Этот ключ будет использоваться для создания HMAC-SHA256 подписи запросов.
 
-### 2. Настройте URL бэкенда
+### 2. Настройте URL серверов
 
 ```bash
-./setup-backend-url.sh
+./setup-urls.sh
 ```
 
 Выберите подходящий вариант:
-- **Локальная разработка** - `http://localhost:8000`
-- **Docker контейнер** - `http://admin:8000`
-- **Внешний сервер** - `https://your-domain.com`
+- **Локальная разработка** - ADMIN: `http://localhost:8000`, FRONTEND: `http://localhost:3000`
+- **Docker контейнер** - ADMIN: `http://admin:8000`, FRONTEND: `http://localhost:3000`
+- **Внешние серверы** - укажите свои домены
 
 ### 3. Настройте переменные окружения
 
@@ -36,17 +36,28 @@
 
 ```env
 BOT_SHARED_SECRET=your_secret_key_here
-BACKEND_URL=https://your-backend.com  # По умолчанию http://localhost:8000
+ADMIN_URL=https://your-admin.com      # Для данных о реакциях
+FRONTEND_URL=https://your-frontend.com # Для привязки аккаунтов
 ```
 
 > 💡 **Рекомендуется использовать скрипты** для автоматической настройки
 
-## 📡 API Endpoint
+## 📡 API Endpoints
 
-Бот отправляет POST запрос на ваш endpoint:
+### Привязка аккаунта (FRONTEND_URL)
+
+Бот отправляет POST запрос на ваш фронтенд:
 
 ```
-POST /api/telegram/link
+POST {FRONTEND_URL}/api/telegram/link
+```
+
+### Данные о реакциях (ADMIN_URL)
+
+Бот отправляет POST запрос при каждой поставленной реакции на админку:
+
+```
+POST {ADMIN_URL}/api/telegram/reaction
 ```
 
 ### Заголовки
@@ -56,7 +67,7 @@ Content-Type: application/json
 X-Signature: hmac_sha256_signature
 ```
 
-### Тело запроса
+### Тело запроса для привязки
 
 ```json
 {
@@ -65,6 +76,29 @@ X-Signature: hmac_sha256_signature
   "username": "john_doe",
   "first_name": "John",
   "last_name": "Doe"
+}
+```
+
+### Тело запроса для реакции
+
+```json
+{
+  "tg_user_id": "123456789",
+  "username": "john_doe",
+  "first_name": "John",
+  "last_name": "Doe",
+  "tag": "#рецепт",
+  "counter_name": "Рецепты",
+  "emoji": "🔥",
+  "chat_id": "-1001234567890",
+  "message_id": "12345",
+  "text": "Вот мой #рецепт торта",
+  "caption": "",
+  "thread_name": "Кулинария",
+  "has_photo": true,
+  "has_video": false,
+  "media_file_ids": ["BAADBAADrwADBREAAYag2eLPt_OAAI"],
+  "timestamp": "2024-01-15T10:30:00.123456"
 }
 ```
 
@@ -203,6 +237,28 @@ async def link_telegram(
     link_account(code, tg_user_id, data)
     
     return {"status": "linked"}
+
+@app.post("/api/telegram/reaction")
+async def handle_reaction(
+    data: dict,
+    x_signature: str = Header(alias="X-Signature")
+):
+    # Проверяем подпись
+    body = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
+    if not verify_signature(body, x_signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    
+    # Обрабатываем данные о реакции
+    tg_user_id = data.get("tg_user_id")
+    tag = data.get("tag")
+    counter_name = data.get("counter_name")
+    emoji = data.get("emoji")
+    
+    # Ваша логика обработки реакции
+    # Например: начисление очков, обновление статистики и т.д.
+    process_user_reaction(tg_user_id, tag, counter_name, emoji, data)
+    
+    return {"status": "processed"}
 ```
 
 ## 🧪 Тестирование
@@ -221,11 +277,12 @@ async def link_telegram(
    ```bash
    # Используйте скрипты
    ./setup-shared-secret.sh  # Выберите "2" и введите: test_secret_key_123456789
-   ./setup-backend-url.sh    # Выберите "4" и введите: http://localhost:3000
+   ./setup-urls.sh          # Выберите "4" и введите URL тестового сервера
    
    # Или вручную в .env файле
    BOT_SHARED_SECRET=test_secret_key_123456789
-   BACKEND_URL=http://localhost:3000
+   ADMIN_URL=http://localhost:3000
+   FRONTEND_URL=http://localhost:3000
    ```
 
 4. **Отправьте код боту:**
