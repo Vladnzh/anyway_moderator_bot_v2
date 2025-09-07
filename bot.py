@@ -348,10 +348,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # Обычное приветствие
         await update.message.reply_text(
-            "👋 Привет! Я бот-модератор.\n\n"
-            "Для привязки аккаунта используй команду:\n"
+            "👋 Привіт! Я бот-модератор.\n\n"
+            "Для прив'язки акаунта використовуй команду:\n"
             "/start <КОД>\n\n"
-            "Или просто отправь мне код сообщением."
+            "Або просто надішли мені код повідомленням."
         )
 
 async def handle_link_code(update: Update, code: str):
@@ -359,13 +359,16 @@ async def handle_link_code(update: Update, code: str):
     user = update.effective_user
     
     if not user:
-        await update.message.reply_text("🚫 Не удалось получить информацию о пользователе")
+        await update.message.reply_text("🚫 Не вдалося отримати інформацію про користувача")
         return
     
     # Проверяем формат кода (должен быть не пустым)
     if not code or len(code.strip()) < 3:
-        await update.message.reply_text("❌ Неверный формат кода")
+        await update.message.reply_text("❌ Невірний формат коду")
         return
+    
+    # Показываем сообщение о обработке
+    processing_message = await update.message.reply_text("⏳ Обробляю запит...")
     
     # Отправляем запрос на бэкенд
     logger.info(f"🔗 Попытка привязки аккаунта: user_id={user.id}, code={code[:8]}...")
@@ -377,6 +380,12 @@ async def handle_link_code(update: Update, code: str):
         first_name=user.first_name or "",
         last_name=user.last_name or ""
     )
+    
+    # Удаляем сообщение о обработке
+    try:
+        await processing_message.delete()
+    except:
+        pass  # Игнорируем ошибки удаления
     
     # Обрабатываем результат
     if not result["success"]:
@@ -394,7 +403,7 @@ async def handle_backend_response(update: Update, result: Dict[str, Any]):
     data = result.get("data", {})
     
     if status_code == 200 and data.get("status") == "linked":
-        await update.message.reply_text("✅ Аккаунт привязан")
+        await update.message.reply_text("✅ Акаунт прив'язано")
         logger.info(f"✅ Аккаунт успешно привязан: user_id={update.effective_user.id}")
         
     elif status_code == 400:
@@ -402,14 +411,14 @@ async def handle_backend_response(update: Update, result: Dict[str, Any]):
         if error_type == "invalid_or_expired_code":
             await update.message.reply_text("❌ Код невірний або строк дії минув")
         else:
-            await update.message.reply_text("❌ Неверный запрос")
+            await update.message.reply_text("❌ Невірний запит")
             
     elif status_code == 409:
         error_type = data.get("error", "")
         if error_type == "tg_already_linked_to_another_user":
             await update.message.reply_text("⚠️ Цей Telegram вже прив'язаний до іншого акаунта")
         else:
-            await update.message.reply_text("⚠️ Конфликт данных")
+            await update.message.reply_text("⚠️ Конфлікт даних")
             
     else:
         await update.message.reply_text("🚫 Сталася помилка. Спробуй ще раз")
@@ -441,7 +450,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Тестовая команда для принудительной обработки очереди реакций"""
     await process_reaction_queue(context)
-    await update.message.reply_text("🧪 Очередь реакций обработана")
+    await update.message.reply_text("🧪 Черга реакцій оброблена")
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик ошибок"""
