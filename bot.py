@@ -9,6 +9,9 @@ import hashlib
 import uuid
 import logging
 import re
+import hmac
+import json
+import aiohttp
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -32,11 +35,69 @@ if not BOT_TOKEN:
     logger.error("❌ BOT_TOKEN не найден!")
     exit(1)
 
+BOT_SHARED_SECRET = os.getenv("BOT_SHARED_SECRET")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
 logger.info(f"🔑 BOT_TOKEN найден: {BOT_TOKEN[:10]}...{BOT_TOKEN[-4:]}")
+if BOT_SHARED_SECRET:
+    logger.info(f"🔐 BOT_SHARED_SECRET найден: {BOT_SHARED_SECRET[:8]}...")
+else:
+    logger.warning("⚠️ BOT_SHARED_SECRET не найден - функция привязки аккаунтов недоступна")
 
 def get_file_hash(file_content: bytes) -> str:
     """Вычислить хэш файла"""
     return hashlib.md5(file_content).hexdigest()
+
+def create_hmac_signature(data: str, secret: str) -> str:
+    """Создать HMAC-SHA256 подпись"""
+    return hmac.new(
+        secret.encode('utf-8'),
+        data.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+async def link_telegram_account(code: str, user_id: int, username: str, first_name: str, last_name: str) -> Dict[str, Any]:
+    """Отправить запрос на привязку Telegram аккаунта"""
+    if not BOT_SHARED_SECRET:
+        return {"success": False, "error": "BOT_SHARED_SECRET не настроен"}
+    
+    # Подготавливаем данные для запроса
+    payload = {
+        "code": code,
+        "tg_user_id": str(user_id),
+        "username": username or "",
+        "first_name": first_name or "",
+        "last_name": last_name or ""
+    }
+    
+    # Создаем JSON строку и подпись
+    json_data = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+    signature = create_hmac_signature(json_data, BOT_SHARED_SECRET)
+    
+    # Отправляем запрос
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{BACKEND_URL}/api/telegram/link",
+                data=json_data,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Signature": signature
+                },
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                response_data = await response.json()
+                return {
+                    "success": response.status == 200,
+                    "status_code": response.status,
+                    "data": response_data
+                }
+    except aiohttp.ClientError as e:
+        logger.error(f"❌ Ошибка HTTP запроса: {e}")
+        return {"success": False, "error": f"Ошибка сети: {e}"}
+    except Exception as e:
+        logger.error(f"❌ Неожиданная ошибка: {e}")
+        return {"success": False, "error": f"Неожиданная ошибка: {e}"}
 
 async def get_media_info(message) -> Dict[str, Any]:
     """Получить информацию о медиафайлах в сообщении"""
@@ -278,6 +339,105 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         log_bot_event('error', {'message': f"Ошибка постановки реакции: {e}"})
 
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды /start"""
+    # Проверяем, есть ли код в аргументах команды
+    if context.args and len(context.args) > 0:
+        code = context.args[0].strip()
+        await handle_link_code(update, code)
+    else:
+        # Обычное приветствие
+        await update.message.reply_text(
+            "👋 Привет! Я бот-модератор.\n\n"
+            "Для привязки аккаунта используй команду:\n"
+            "/start <КОД>\n\n"
+            "Или просто отправь мне код сообщением."
+        )
+
+async def handle_link_code(update: Update, code: str):
+    """Обработка кода привязки аккаунта"""
+    user = update.effective_user
+    
+    if not user:
+        await update.message.reply_text("🚫 Не удалось получить информацию о пользователе")
+        return
+    
+    # Проверяем формат кода (должен быть не пустым)
+    if not code or len(code.strip()) < 3:
+        await update.message.reply_text("❌ Неверный формат кода")
+        return
+    
+    # Отправляем запрос на бэкенд
+    logger.info(f"🔗 Попытка привязки аккаунта: user_id={user.id}, code={code[:8]}...")
+    
+    result = await link_telegram_account(
+        code=code.strip(),
+        user_id=user.id,
+        username=user.username or "",
+        first_name=user.first_name or "",
+        last_name=user.last_name or ""
+    )
+    
+    # Обрабатываем результат
+    if not result["success"]:
+        if "error" in result:
+            await update.message.reply_text("🚫 Сталася помилка. Спробуй ще раз")
+            logger.error(f"❌ Ошибка привязки: {result['error']}")
+        else:
+            await handle_backend_response(update, result)
+    else:
+        await handle_backend_response(update, result)
+
+async def handle_backend_response(update: Update, result: Dict[str, Any]):
+    """Обработка ответа от бэкенда"""
+    status_code = result.get("status_code", 0)
+    data = result.get("data", {})
+    
+    if status_code == 200 and data.get("status") == "linked":
+        await update.message.reply_text("✅ Аккаунт привязан")
+        logger.info(f"✅ Аккаунт успешно привязан: user_id={update.effective_user.id}")
+        
+    elif status_code == 400:
+        error_type = data.get("error", "")
+        if error_type == "invalid_or_expired_code":
+            await update.message.reply_text("❌ Код невірний або строк дії минув")
+        else:
+            await update.message.reply_text("❌ Неверный запрос")
+            
+    elif status_code == 409:
+        error_type = data.get("error", "")
+        if error_type == "tg_already_linked_to_another_user":
+            await update.message.reply_text("⚠️ Цей Telegram вже прив'язаний до іншого акаунта")
+        else:
+            await update.message.reply_text("⚠️ Конфликт данных")
+            
+    else:
+        await update.message.reply_text("🚫 Сталася помилка. Спробуй ще раз")
+        logger.error(f"❌ Неожиданный ответ бэкенда: status={status_code}, data={data}")
+
+async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик текстовых сообщений (включая коды привязки)"""
+    message = update.message
+    if not message or not message.text:
+        return
+    
+    text = message.text.strip()
+    
+    # Проверяем, является ли сообщение кодом привязки
+    # Код должен быть коротким (до 100 символов) и не содержать хештегов
+    if (len(text) <= 100 and 
+        not text.startswith('/') and 
+        '#' not in text and 
+        len(text.split()) == 1):  # Один токен без пробелов
+        
+        # Проверяем, что это не обычное слово (коды обычно содержат цифры или специальные символы)
+        if any(c.isdigit() or c in '-_' for c in text):
+            await handle_link_code(update, text)
+            return
+    
+    # Если это не код привязки, передаем в обычный обработчик
+    await handle_any(update, context)
+
 async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Тестовая команда для принудительной обработки очереди реакций"""
     await process_reaction_queue(context)
@@ -316,8 +476,10 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
     # Добавляем обработчики
-    app.add_handler(MessageHandler(filters.ALL, handle_any))
+    app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("test", test_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
+    app.add_handler(MessageHandler(filters.ALL & ~filters.TEXT, handle_any))
     
     # Добавляем обработчик ошибок
     app.add_error_handler(error_handler)

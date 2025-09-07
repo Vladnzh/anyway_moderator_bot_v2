@@ -9,6 +9,8 @@ services:
       - BOT_TOKEN=${BOT_TOKEN}
       - ADMIN_TOKEN=${ADMIN_TOKEN}
       - DATABASE_PATH=/app/data/bot_data.db
+      - BOT_SHARED_SECRET=${BOT_SHARED_SECRET}
+      - BACKEND_URL=${BACKEND_URL:-http://admin:8000}
     volumes:
       - ./data:/app/data
       - ./json_backup:/app/json_backup:ro
