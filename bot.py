@@ -44,8 +44,14 @@ logger.info(f"🔗 ADMIN_URL: {ADMIN_URL}")
 logger.info(f"🌐 FRONTEND_URL: {FRONTEND_URL}")
 if BOT_SHARED_SECRET:
     logger.info(f"🔐 BOT_SHARED_SECRET найден: {BOT_SHARED_SECRET[:8]}...")
+    logger.debug("✅ Функции привязки аккаунтов и HTTP запросов доступны")
 else:
     logger.warning("⚠️ BOT_SHARED_SECRET не найден - функция привязки аккаунтов недоступна")
+    logger.warning("⚠️ HTTP запросы на бэкенд будут отключены")
+
+# Логируем дополнительную информацию о конфигурации
+logger.debug(f"🗂️ DATABASE_PATH: {os.getenv('DATABASE_PATH', 'По умолчанию')}")
+logger.debug(f"🐳 Запуск в Docker: {'Да' if os.path.exists('/.dockerenv') else 'Нет'}")
 
 def get_file_hash(file_content: bytes) -> str:
     """Вычислить хэш файла"""
@@ -107,7 +113,7 @@ async def link_telegram_account(code: str, user_id: int, username: str, first_na
         logger.error(f"❌ Неожиданная ошибка: {e}")
         return {"success": False, "error": f"Неожиданная ошибка: {e}"}
 
-async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: Dict[str, Any], thread_name: str) -> Dict[str, Any]:
+async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: Dict[str, Any], thread_name: str, status: str = "approved") -> Dict[str, Any]:
     """Отправить данные о реакции на бэкенд"""
     if not BOT_SHARED_SECRET:
         logger.warning("⚠️ BOT_SHARED_SECRET не настроен - данные о реакции не отправляются")
@@ -130,6 +136,7 @@ async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: D
         "has_photo": media_info.get('has_photo', False),
         "has_video": media_info.get('has_video', False),
         "media_file_ids": media_info.get('media_file_ids', []),
+        "status": status,  # approved, pending, rejected
         "timestamp": datetime.now().isoformat()
     }
     
@@ -155,7 +162,7 @@ async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: D
             ) as response:
                 if response.status == 200:
                     response_data = await response.json()
-                    logger.info(f"✅ Данные о реакции отправлены: user_id={message.from_user.id}, tag={matched_tag['tag']}")
+                    logger.info(f"✅ Данные отправлены: user_id={message.from_user.id}, tag={matched_tag['tag']}, status={status}")
                     logger.debug(f"📥 Ответ админки: {response_data}")
                     return {
                         "success": True,
@@ -164,7 +171,7 @@ async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: D
                     }
                 else:
                     response_text = await response.text()
-                    logger.warning(f"⚠️ Бэкенд вернул код {response.status} для реакции: {response_text}")
+                    logger.warning(f"⚠️ Бэкенд вернул код {response.status} для данных: {response_text}")
                     return {
                         "success": False,
                         "status_code": response.status,
@@ -262,6 +269,41 @@ async def process_reaction_queue(context: ContextTypes.DEFAULT_TYPE):
                 
                 logger.info(f"✅ Реакция из очереди: {item['emoji']} → сообщение {item['message_id']}")
                 
+                # Получаем данные модерации для отправки на бэкенд
+                if item.get('moderation_id'):
+                    try:
+                        moderation_item = db.get_moderation_by_id(item['moderation_id'])
+                        if moderation_item:
+                            # Создаем объект сообщения для отправки данных
+                            class MockMessage:
+                                def __init__(self, data):
+                                    self.chat_id = data['chat_id']
+                                    self.message_id = data['message_id']
+                                    self.text = data.get('text', '')
+                                    self.caption = data.get('caption', '')
+                                    class MockUser:
+                                        def __init__(self, user_data):
+                                            self.id = user_data['user_id']
+                                            self.username = user_data.get('username', '')
+                                            self.first_name = user_data.get('first_name', '')
+                                            self.last_name = user_data.get('last_name', '')
+                                    self.from_user = MockUser(data)
+                            
+                            mock_message = MockMessage(moderation_item)
+                            matched_tag = {
+                                'tag': moderation_item.get('tag', ''),
+                                'counter_name': moderation_item.get('counter_name', ''),
+                                'emoji': moderation_item.get('emoji', '')
+                            }
+                            media_info = moderation_item.get('media_info', {})
+                            thread_name = moderation_item.get('thread_name', '')
+                            
+                            # Отправляем данные на бэкенд
+                            await send_reaction_data(mock_message, matched_tag, media_info, thread_name, "approved")
+                            logger.debug(f"📊 Данные о реакции из очереди отправлены на бэкенд")
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка отправки данных о реакции из очереди: {e}")
+                
                 # Удаляем из очереди
                 db.remove_reaction_from_queue(item['id'])
                 
@@ -336,6 +378,18 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text_preview = (message.text or message.caption or "")[:100]
     logger.info(f"📨 Входящее сообщение от {user_info}: {text_preview}")
     logger.debug(f"📍 Чат: {message.chat_id}, Сообщение: {message.message_id}")
+    logger.debug(f"🔍 Полный текст: {message.text or message.caption or 'Нет текста'}")
+    
+    # Логируем информацию о пользователе
+    logger.debug(f"👤 Пользователь: @{message.from_user.username or 'без_username'} | {message.from_user.first_name or ''} {message.from_user.last_name or ''}")
+    
+    # Логируем тип сообщения
+    if message.photo:
+        logger.debug("🖼️ Сообщение содержит фото")
+    if message.video:
+        logger.debug("🎥 Сообщение содержит видео")
+    if message.is_topic_message:
+        logger.debug("🧵 Сообщение в треде")
     
     # Получаем все теги из БД
     tags = db.get_tags()
@@ -397,9 +451,21 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     logger.info(f"🎯 Тег сработал: {matched_tag['tag']} | Пользователь: {user_info}")
     
+    # Логируем настройки тега
+    logger.debug(f"⚙️ Настройки тега:")
+    logger.debug(f"   🔥 Эмодзи: {matched_tag['emoji']}")
+    logger.debug(f"   📊 Счетчик: {matched_tag.get('counter_name', 'Не указан')}")
+    logger.debug(f"   ⏱️ Задержка: {matched_tag.get('delay', 0)}с")
+    logger.debug(f"   🔍 Модерация: {'Включена' if matched_tag.get('moderation_enabled') else 'Отключена'}")
+    logger.debug(f"   🖼️ Требует медиа: {'Да' if matched_tag.get('require_photo') else 'Нет'}")
+    if matched_tag.get('thread_name'):
+        logger.debug(f"   🧵 Только в треде: {matched_tag['thread_name']}")
+    
     # Получаем информацию о медиафайлах
     media_info = await get_media_info(message)
     logger.debug(f"🖼️ Медиа: фото={media_info['has_photo']}, видео={media_info['has_video']}")
+    if media_info['media_file_ids']:
+        logger.debug(f"📁 ID файлов: {media_info['media_file_ids']}")
     
     # Проверяем требование медиафайла
     if matched_tag['require_photo'] and not (media_info['has_photo'] or media_info['has_video']):
@@ -425,6 +491,9 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Добавляем в очередь модерации
         item_id = add_to_moderation_queue(message, matched_tag, media_info, thread_name)
         logger.debug(f"📝 Создан элемент модерации ID: {item_id}")
+        
+        # НЕ отправляем данные при добавлении в модерацию - только при реальной реакции
+        logger.debug("⏳ Сообщение добавлено в модерацию, данные НЕ отправляются на бэкенд")
         
         # Отправляем сообщение о постановке в очередь
         if matched_tag['reply_pending']:

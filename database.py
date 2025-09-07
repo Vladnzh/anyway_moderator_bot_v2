@@ -324,6 +324,20 @@ class Database:
             """, (status, item_id))
             conn.commit()
             return cursor.rowcount > 0
+    
+    def get_moderation_by_id(self, item_id: str) -> Dict[str, Any]:
+        """Получить элемент модерации по ID"""
+        with self.get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT * FROM moderation_queue 
+                WHERE id = ?
+            """, (item_id,))
+            row = cursor.fetchone()
+            if row:
+                item = dict(row)
+                item['media_info'] = json.loads(item['media_info'] or '{}')
+                return item
+            return None
 
     # === ХЭШИ МЕДИАФАЙЛОВ ===
     def add_media_hash(self, file_hash: str, file_id: str, file_type: str, 

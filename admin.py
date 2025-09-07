@@ -1,7 +1,8 @@
-import os, json, datetime, asyncio, uuid, logging
+import os, json, datetime, asyncio, uuid, logging, hmac, hashlib
 from typing import Literal, List, Dict, Any, Optional
 from pathlib import Path
 import httpx
+import aiohttp
 from database import db
 from logger_config import setup_logging, log_bot_event
 from fastapi import FastAPI, Request, Form, HTTPException, Depends, Query
@@ -16,6 +17,8 @@ load_dotenv()
 # Получаем токены из переменных окружения
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_SHARED_SECRET = os.getenv("BOT_SHARED_SECRET")
+ADMIN_URL = os.getenv("ADMIN_URL", "http://localhost:8000")
 
 if not ADMIN_TOKEN:
     print("⚠️ ADMIN_TOKEN не установлен, используется 'changeme'")
@@ -258,6 +261,14 @@ def get_moderation(_: bool = Depends(require_api_admin)):
     except Exception as e:
         return ApiResponse(success=False, message=str(e))
 
+def create_hmac_signature(data: str, secret: str) -> str:
+    """Создать HMAC-SHA256 подпись"""
+    return hmac.new(
+        secret.encode('utf-8'),
+        data.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
 async def set_telegram_reaction(chat_id: int, message_id: int, emoji: str) -> bool:
     """Поставить реакцию через Telegram API"""
     try:
@@ -326,6 +337,59 @@ async def approve_moderation(item_id: str, _: bool = Depends(require_api_admin))
         db.add_log(log_data)
         
         if reaction_success:
+            # Отправляем данные на бэкенд при успешной постановке реакции
+            try:
+                # Подготавливаем данные для отправки
+                media_info = item.get('media_info', {})
+                payload = {
+                    "tg_user_id": str(item['user_id']),
+                    "username": item.get('username', ''),
+                    "first_name": item.get('first_name', ''),
+                    "last_name": item.get('last_name', ''),
+                    "tag": item.get('tag', ''),
+                    "counter_name": item.get('counter_name', ''),
+                    "emoji": item.get('emoji', ''),
+                    "chat_id": str(item['chat_id']),
+                    "message_id": str(item['message_id']),
+                    "text": item.get('text', ''),
+                    "caption": item.get('caption', ''),
+                    "thread_name": item.get('thread_name', ''),
+                    "has_photo": media_info.get('has_photo', False),
+                    "has_video": media_info.get('has_video', False),
+                    "media_file_ids": media_info.get('media_file_ids', []),
+                    "status": "approved",
+                    "timestamp": datetime.datetime.now().isoformat()
+                }
+                
+                if BOT_SHARED_SECRET:
+                    # Создаем JSON строку и подпись
+                    json_data = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+                    signature = create_hmac_signature(json_data, BOT_SHARED_SECRET)
+                    
+                    logger.debug(f"📊 Отправляем данные о реакции на {ADMIN_URL}/api/telegram/reaction")
+                    
+                    # Отправляем запрос
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post(
+                            f"{ADMIN_URL}/api/telegram/reaction",
+                            data=json_data,
+                            headers={
+                                "Content-Type": "application/json",
+                                "X-Signature": signature
+                            },
+                            timeout=aiohttp.ClientTimeout(total=10)
+                        ) as response:
+                            if response.status == 200:
+                                response_data = await response.json()
+                                logger.info(f"✅ Данные о реакции отправлены: user_id={item['user_id']}")
+                            else:
+                                logger.warning(f"⚠️ Бэкенд вернул код {response.status}")
+                else:
+                    logger.warning("⚠️ BOT_SHARED_SECRET не настроен - данные не отправляются")
+                    
+            except Exception as e:
+                logger.error(f"❌ Ошибка отправки данных о реакции: {e}")
+            
             return ApiResponse(success=True, message="Элемент одобрен, реакция поставлена")
         else:
             # Добавляем в очередь реакций как фоллбэк
@@ -336,7 +400,7 @@ async def approve_moderation(item_id: str, _: bool = Depends(require_api_admin))
         return ApiResponse(success=False, message=str(e))
 
 @app.post("/api/moderation/{item_id}/reject")
-def reject_moderation(item_id: str, _: bool = Depends(require_api_admin)):
+async def reject_moderation(item_id: str, _: bool = Depends(require_api_admin)):
     """Отклонить элемент модерации"""
     try:
         # Получаем элемент перед отклонением для логирования
@@ -348,6 +412,8 @@ def reject_moderation(item_id: str, _: bool = Depends(require_api_admin)):
         
         success = db.update_moderation_status(item_id, "rejected")
         if success:
+            # НЕ отправляем данные при отклонении - реакция не ставится
+            
             # Добавляем запись в логи при отклонении (с эмодзи ❌)
             log_data = {
                 'user_id': item['user_id'],
