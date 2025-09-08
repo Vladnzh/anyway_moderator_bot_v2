@@ -44,10 +44,32 @@ echo "✅ Бот запущен!"
 echo "🌐 Админка: http://localhost:8000"
 echo "📁 База данных: ./data/bot_data.db (сохранена)"
 
-# Показываем админ токен если есть
+# Показываем конфигурацию если есть .env
 if [ -f ".env" ]; then
     source .env
     if [ -n "$ADMIN_TOKEN" ]; then
         echo "🔑 Токен для входа: $ADMIN_TOKEN"
+    fi
+    
+    echo ""
+    echo "🔧 Конфигурация бэкенда:"
+    if [ -n "$ADMIN_URL" ]; then
+        echo "📊 Admin URL: $ADMIN_URL"
+    else
+        echo "📊 Admin URL: не настроен"
+    fi
+    
+    if [ -n "$FRONTEND_URL" ]; then
+        echo "🌐 Frontend URL: $FRONTEND_URL"
+    else
+        echo "🌐 Frontend URL: не настроен"
+    fi
+    
+    if [ -n "$BOT_SHARED_SECRET" ]; then
+        # Показываем только первые и последние 8 символов секрета
+        secret_masked="${BOT_SHARED_SECRET:0:8}...${BOT_SHARED_SECRET: -8}"
+        echo "🔐 Shared Secret: $secret_masked"
+    else
+        echo "🔐 Shared Secret: не настроен"
     fi
 fi

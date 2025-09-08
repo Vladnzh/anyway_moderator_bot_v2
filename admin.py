@@ -423,60 +423,60 @@ async def approve_moderation(item_id: str, _: bool = Depends(require_api_admin))
         }
         db.add_log(log_data)
         
-        if reaction_success:
-            # Отправляем данные на бэкенд при успешной постановке реакции
-            try:
-                # Подготавливаем данные для отправки
-                media_info = item.get('media_info', {})
-                payload = {
-                    "tg_user_id": str(item['user_id']),
-                    "username": item.get('username', ''),
-                    "first_name": item.get('first_name', ''),
-                    "last_name": item.get('last_name', ''),
-                    "tag": item.get('tag', ''),
-                    "counter_name": item.get('counter_name', ''),
-                    "emoji": item.get('emoji', ''),
-                    "chat_id": str(item['chat_id']),
-                    "message_id": str(item['message_id']),
-                    "text": item.get('text', ''),
-                    "caption": item.get('caption', ''),
-                    "thread_name": item.get('thread_name', ''),
-                    "has_photo": media_info.get('has_photo', False),
-                    "has_video": media_info.get('has_video', False),
-                    "media_file_ids": media_info.get('media_file_ids', []),
-                    "status": "approved",
-                    "timestamp": datetime.datetime.now().isoformat()
-                }
-                
-                if BOT_SHARED_SECRET:
-                    # Создаем JSON строку и подпись
-                    json_data = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
-                    signature = create_hmac_signature(json_data, BOT_SHARED_SECRET)
-                    
-                    logger.debug(f"📊 Отправляем данные о реакции на {ADMIN_URL}/api/telegram/reaction")
-                    
-                    # Отправляем запрос
-                    async with aiohttp.ClientSession() as session:
-                        async with session.post(
-                            f"{ADMIN_URL}/api/telegram/reaction",
-                            data=json_data,
-                            headers={
-                                "Content-Type": "application/json",
-                                "X-Signature": signature
-                            },
-                            timeout=aiohttp.ClientTimeout(total=10)
-                        ) as response:
-                            if response.status == 200:
-                                response_data = await response.json()
-                                logger.info(f"✅ Данные о реакции отправлены: user_id={item['user_id']}")
-                            else:
-                                logger.warning(f"⚠️ Бэкенд вернул код {response.status}")
-                else:
-                    logger.warning("⚠️ BOT_SHARED_SECRET не настроен - данные не отправляются")
-                    
-            except Exception as e:
-                logger.error(f"❌ Ошибка отправки данных о реакции: {e}")
+        # Отправляем данные на бэкенд при одобрении (независимо от успеха реакции)
+        try:
+            # Подготавливаем данные для отправки
+            media_info = item.get('media_info', {})
+            payload = {
+                "tg_user_id": str(item['user_id']),
+                "username": item.get('username', ''),
+                "first_name": item.get('first_name', ''),
+                "last_name": item.get('last_name', ''),
+                "tag": item.get('tag', ''),
+                "counter_name": item.get('counter_name', ''),
+                "emoji": item.get('emoji', ''),
+                "chat_id": str(item['chat_id']),
+                "message_id": str(item['message_id']),
+                "text": item.get('text', ''),
+                "caption": item.get('caption', ''),
+                "thread_name": item.get('thread_name', ''),
+                "has_photo": media_info.get('has_photo', False),
+                "has_video": media_info.get('has_video', False),
+                "media_file_ids": media_info.get('media_file_ids', []),
+                "status": "approved",
+                "timestamp": datetime.datetime.now().isoformat()
+            }
             
+            if BOT_SHARED_SECRET:
+                # Создаем JSON строку и подпись
+                json_data = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+                signature = create_hmac_signature(json_data, BOT_SHARED_SECRET)
+                
+                logger.debug(f"📊 Отправляем данные об одобрении на {ADMIN_URL}/api/telegram/reaction")
+                
+                # Отправляем запрос
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"{ADMIN_URL}/api/telegram/reaction",
+                        data=json_data,
+                        headers={
+                            "Content-Type": "application/json",
+                            "X-Signature": signature
+                        },
+                        timeout=aiohttp.ClientTimeout(total=10)
+                    ) as response:
+                        if response.status == 200:
+                            response_data = await response.json()
+                            logger.info(f"✅ Данные об одобрении отправлены: user_id={item['user_id']}")
+                        else:
+                            logger.warning(f"⚠️ Бэкенд вернул код {response.status}")
+            else:
+                logger.warning("⚠️ BOT_SHARED_SECRET не настроен - данные не отправляются")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки данных об одобрении: {e}")
+        
+        if reaction_success:
             return ApiResponse(success=True, message="Элемент одобрен, реакция поставлена")
         else:
             # Добавляем в очередь реакций как фоллбэк
