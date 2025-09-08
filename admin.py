@@ -581,16 +581,17 @@ async def set_reaction_direct(request: ReactionRequest, _: bool = Depends(requir
             emoji=request.emoji
         )
         
+        # Отправляем данные на бэкенд независимо от успеха (для тестирования)
+        await send_reaction_to_backend(
+            chat_id=request.chat_id,
+            message_id=request.message_id,
+            emoji=request.emoji
+        )
+        
         if success:
-            # Отправляем данные на бэкенд после успешной постановки реакции
-            await send_reaction_to_backend(
-                chat_id=request.chat_id,
-                message_id=request.message_id,
-                emoji=request.emoji
-            )
             return ApiResponse(success=True, message=f"Реакция {request.emoji} поставлена к сообщению {request.message_id}")
         else:
-            return ApiResponse(success=False, message="Не удалось поставить реакцию")
+            return ApiResponse(success=False, message="Не удалось поставить реакцию (но данные отправлены на бэкенд)")
     except Exception as e:
         return ApiResponse(success=False, message=str(e))
 

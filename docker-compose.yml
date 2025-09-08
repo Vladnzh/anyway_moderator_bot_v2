@@ -10,8 +10,8 @@ services:
       - ADMIN_TOKEN=${ADMIN_TOKEN}
       - DATABASE_PATH=/app/data/bot_data.db
       - BOT_SHARED_SECRET=${BOT_SHARED_SECRET}
-      - ADMIN_URL=${ADMIN_URL:-http://admin:8000}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - ADMIN_URL=${ADMIN_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
     volumes:
       - ./data:/app/data
       - ./json_backup:/app/json_backup:ro
@@ -35,6 +35,9 @@ services:
       - BOT_TOKEN=${BOT_TOKEN}
       - ADMIN_TOKEN=${ADMIN_TOKEN}
       - DATABASE_PATH=/app/data/bot_data.db
+      - BOT_SHARED_SECRET=${BOT_SHARED_SECRET}
+      - ADMIN_URL=${ADMIN_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
     volumes:
       - ./data:/app/data
       - ./static:/app/static:ro
