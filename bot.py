@@ -171,7 +171,9 @@ async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: D
                     }
                 else:
                     response_text = await response.text()
-                    logger.warning(f"⚠️ Бэкенд вернул код {response.status} для данных: {response_text}")
+                    logger.warning(f"⚠️ Бэкенд вернул код {response.status}")
+                    logger.warning(f"📄 Ответ бэкенда: {response_text}")
+                    logger.debug(f"📝 Отправленные данные: {json_data}")
                     return {
                         "success": False,
                         "status_code": response.status,
