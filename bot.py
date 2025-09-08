@@ -145,14 +145,17 @@ async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: D
     signature = create_hmac_signature(json_data, BOT_SHARED_SECRET)
     
     # Отправляем запрос
-    logger.debug(f"📊 Отправляем данные о реакции на {ADMIN_URL}/api/telegram/reaction")
+    url = f"{ADMIN_URL}/api/telegram/reaction"
+    logger.info(f"📊 Отправляем данные о реакции на: {url}")
     logger.debug(f"📝 Данные реакции: {json_data}")
     logger.debug(f"🔐 Подпись: {signature[:16]}...")
+    logger.debug(f"📋 Заголовки: Content-Type=application/json, X-Signature={signature[:16]}...")
     
     try:
         async with aiohttp.ClientSession() as session:
+            logger.debug(f"🌐 Создаем HTTP сессию для {url}")
             async with session.post(
-                f"{ADMIN_URL}/api/telegram/reaction",
+                url,
                 data=json_data,
                 headers={
                     "Content-Type": "application/json",
@@ -160,10 +163,15 @@ async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: D
                 },
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
+                logger.debug(f"📡 HTTP запрос отправлен, ожидаем ответ...")
                 if response.status == 200:
                     response_data = await response.json()
-                    logger.info(f"✅ Данные отправлены: user_id={message.from_user.id}, tag={matched_tag['tag']}, status={status}")
-                    logger.debug(f"📥 Ответ админки: {response_data}")
+                    logger.info(f"✅ УСПЕШНО ОТПРАВЛЕНО:")
+                    logger.info(f"🌐 URL: {url}")
+                    logger.info(f"👤 Пользователь: {message.from_user.id}")
+                    logger.info(f"🏷️ Тег: {matched_tag['tag']}")
+                    logger.info(f"📊 Статус: {status}")
+                    logger.debug(f"📥 Ответ бэкенда: {response_data}")
                     return {
                         "success": True,
                         "status_code": response.status,
@@ -171,9 +179,13 @@ async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: D
                     }
                 else:
                     response_text = await response.text()
-                    logger.warning(f"⚠️ Бэкенд вернул код {response.status}")
-                    logger.warning(f"📄 Ответ бэкенда: {response_text}")
+                    logger.error(f"❌ ОШИБКА БЭКЕНДА:")
+                    logger.error(f"🌐 URL: {url}")
+                    logger.error(f"📊 HTTP код: {response.status}")
+                    logger.error(f"📄 Ответ бэкенда: '{response_text}'")
+                    logger.error(f"📋 Заголовки ответа: {dict(response.headers)}")
                     logger.debug(f"📝 Отправленные данные: {json_data}")
+                    logger.debug(f"🔐 Полная подпись: {signature}")
                     return {
                         "success": False,
                         "status_code": response.status,
