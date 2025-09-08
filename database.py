@@ -338,6 +338,53 @@ class Database:
                 item['media_info'] = json.loads(item['media_info'] or '{}')
                 return item
             return None
+    
+    def find_message_data(self, chat_id: int, message_id: int) -> Dict[str, Any]:
+        """Найти данные о сообщении по chat_id и message_id"""
+        with self.get_connection() as conn:
+            # Сначала ищем в очереди модерации
+            cursor = conn.execute("""
+                SELECT * FROM moderation_queue 
+                WHERE chat_id = ? AND message_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (chat_id, message_id))
+            row = cursor.fetchone()
+            
+            if row:
+                item = dict(row)
+                item['media_info'] = json.loads(item['media_info'] or '{}')
+                return item
+            
+            # Если не найдено в модерации, ищем в логах
+            cursor = conn.execute("""
+                SELECT * FROM logs 
+                WHERE chat_id = ? AND message_id = ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """, (chat_id, message_id))
+            row = cursor.fetchone()
+            
+            if row:
+                item = dict(row)
+                # Преобразуем формат логов к формату модерации
+                return {
+                    'user_id': item.get('user_id'),
+                    'username': item.get('username', ''),
+                    'first_name': '',
+                    'last_name': '',
+                    'chat_id': item.get('chat_id'),
+                    'message_id': item.get('message_id'),
+                    'tag': item.get('trigger', ''),  # В логах поле называется trigger
+                    'counter_name': '',
+                    'emoji': item.get('emoji', ''),
+                    'text': '',
+                    'caption': item.get('caption', ''),
+                    'thread_name': item.get('thread_name', ''),
+                    'media_info': {}
+                }
+            
+            return None
 
     # === ХЭШИ МЕДИАФАЙЛОВ ===
     def add_media_hash(self, file_hash: str, file_id: str, file_type: str, 

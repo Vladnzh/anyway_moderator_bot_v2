@@ -269,6 +269,93 @@ def create_hmac_signature(data: str, secret: str) -> str:
         hashlib.sha256
     ).hexdigest()
 
+async def send_reaction_to_backend(chat_id: int, message_id: int, emoji: str) -> bool:
+    """Отправить данные о реакции на бэкенд"""
+    if not BOT_SHARED_SECRET:
+        logger.warning("⚠️ BOT_SHARED_SECRET не настроен - данные не отправляются")
+        return False
+    
+    try:
+        # Ищем данные о сообщении в базе
+        message_data = db.find_message_data(chat_id, message_id)
+        
+        if not message_data:
+            logger.warning(f"⚠️ Данные о сообщении {message_id} не найдены в базе - отправляем минимальные данные")
+            # Отправляем минимальные данные
+            payload = {
+                "tg_user_id": "",
+                "username": "",
+                "first_name": "",
+                "last_name": "",
+                "tag": "",
+                "counter_name": "",
+                "emoji": emoji,
+                "chat_id": str(chat_id),
+                "message_id": str(message_id),
+                "text": "",
+                "caption": "",
+                "thread_name": "",
+                "has_photo": False,
+                "has_video": False,
+                "media_file_ids": [],
+                "status": "approved",
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+        else:
+            # Используем найденные данные
+            media_info = message_data.get('media_info', {})
+            payload = {
+                "tg_user_id": str(message_data.get('user_id', '')),
+                "username": message_data.get('username', ''),
+                "first_name": message_data.get('first_name', ''),
+                "last_name": message_data.get('last_name', ''),
+                "tag": message_data.get('tag', ''),
+                "counter_name": message_data.get('counter_name', ''),
+                "emoji": emoji,
+                "chat_id": str(chat_id),
+                "message_id": str(message_id),
+                "text": message_data.get('text', ''),
+                "caption": message_data.get('caption', ''),
+                "thread_name": message_data.get('thread_name', ''),
+                "has_photo": media_info.get('has_photo', False),
+                "has_video": media_info.get('has_video', False),
+                "media_file_ids": media_info.get('media_file_ids', []),
+                "status": "approved",
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+        
+        # Создаем JSON строку и подпись
+        json_data = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+        signature = create_hmac_signature(json_data, BOT_SHARED_SECRET)
+        
+        logger.debug(f"📊 Отправляем данные о прямой реакции на {ADMIN_URL}/api/telegram/reaction")
+        logger.debug(f"📝 Данные: {json_data}")
+        
+        # Отправляем запрос
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{ADMIN_URL}/api/telegram/reaction",
+                data=json_data,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Signature": signature
+                },
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                if response.status == 200:
+                    response_data = await response.json()
+                    logger.info(f"✅ Данные о прямой реакции отправлены: message_id={message_id}, emoji={emoji}")
+                    logger.debug(f"📥 Ответ бэкенда: {response_data}")
+                    return True
+                else:
+                    response_text = await response.text()
+                    logger.warning(f"⚠️ Бэкенд вернул код {response.status}: {response_text}")
+                    return False
+                    
+    except Exception as e:
+        logger.error(f"❌ Ошибка отправки данных о прямой реакции: {e}")
+        return False
+
 async def set_telegram_reaction(chat_id: int, message_id: int, emoji: str) -> bool:
     """Поставить реакцию через Telegram API"""
     try:
@@ -495,6 +582,12 @@ async def set_reaction_direct(request: ReactionRequest, _: bool = Depends(requir
         )
         
         if success:
+            # Отправляем данные на бэкенд после успешной постановки реакции
+            await send_reaction_to_backend(
+                chat_id=request.chat_id,
+                message_id=request.message_id,
+                emoji=request.emoji
+            )
             return ApiResponse(success=True, message=f"Реакция {request.emoji} поставлена к сообщению {request.message_id}")
         else:
             return ApiResponse(success=False, message="Не удалось поставить реакцию")
