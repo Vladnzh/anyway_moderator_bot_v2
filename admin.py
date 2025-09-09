@@ -318,11 +318,13 @@ async def approve_moderation(item_id: str, _: bool = Depends(require_api_admin))
             return ApiResponse(success=False, message="Не удалось обновить статус")
         
         # Пытаемся поставить реакцию напрямую
+        logger.info(f"🎯 АДМИНКА: Попытка поставить реакцию {item['emoji']} к сообщению {item['message_id']}")
         reaction_success = await set_telegram_reaction(
             item['chat_id'], 
             item['message_id'], 
             item['emoji']
         )
+        logger.info(f"🎯 АДМИНКА: Результат постановки реакции: {reaction_success}")
         
         # Добавляем запись в логи при одобрении
         log_data = {
@@ -342,9 +344,62 @@ async def approve_moderation(item_id: str, _: bool = Depends(require_api_admin))
         logger.debug("📊 Данные о реакции будут отправлены ботом после установки реакции")
         
         if reaction_success:
+            logger.info("✅ АДМИНКА: Реакция поставлена напрямую - отправляем данные на бэкенд")
+            
+            # Отправляем данные на бэкенд при успешной прямой реакции
+            try:
+                if BOT_SHARED_SECRET and ADMIN_URL:
+                    media_info = item.get('media_info', {})
+                    payload = {
+                        "tg_user_id": str(item['user_id']),
+                        "username": item.get('username', ''),
+                        "first_name": item.get('first_name', ''),
+                        "last_name": item.get('last_name', ''),
+                        "tag": item.get('tag', ''),
+                        "counter_name": item.get('counter_name', ''),
+                        "emoji": item.get('emoji', ''),
+                        "chat_id": str(item['chat_id']),
+                        "message_id": str(item['message_id']),
+                        "text": item.get('text', ''),
+                        "caption": item.get('caption', ''),
+                        "thread_name": item.get('thread_name', ''),
+                        "has_photo": media_info.get('has_photo', False),
+                        "has_video": media_info.get('has_video', False),
+                        "media_file_ids": media_info.get('media_file_ids', []),
+                        "status": "approved",
+                        "timestamp": datetime.datetime.now().isoformat()
+                    }
+                    
+                    json_data = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+                    signature = create_hmac_signature(json_data, BOT_SHARED_SECRET)
+                    
+                    logger.info(f"📊 АДМИНКА: Отправляем данные о прямой реакции на {ADMIN_URL}/api/telegram/reaction")
+                    
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post(
+                            f"{ADMIN_URL}/api/telegram/reaction",
+                            data=json_data,
+                            headers={
+                                "Content-Type": "application/json",
+                                "X-Signature": signature
+                            },
+                            timeout=aiohttp.ClientTimeout(total=10)
+                        ) as response:
+                            if response.status == 200:
+                                response_data = await response.json()
+                                logger.info(f"✅ АДМИНКА: Данные о прямой реакции отправлены успешно")
+                            else:
+                                response_text = await response.text()
+                                logger.warning(f"⚠️ АДМИНКА: Бэкенд вернул код {response.status}: {response_text}")
+                else:
+                    logger.warning("⚠️ АДМИНКА: BOT_SHARED_SECRET или ADMIN_URL не настроены")
+            except Exception as e:
+                logger.error(f"❌ АДМИНКА: Ошибка отправки данных о прямой реакции: {e}")
+            
             return ApiResponse(success=True, message="Элемент одобрен, реакция поставлена")
         else:
             # Добавляем в очередь реакций как фоллбэк
+            logger.info("⏳ АДМИНКА: Реакция не поставлена, добавляем в очередь для бота")
             db.add_reaction_queue(item_id, item['chat_id'], item['message_id'], item['emoji'])
             return ApiResponse(success=True, message="Элемент одобрен, реакция будет поставлена при следующем сообщении")
             
