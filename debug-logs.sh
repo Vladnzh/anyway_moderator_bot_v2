@@ -30,12 +30,21 @@ case "${1:-help}" in
     "reactions")
         echo "🔥 Логи реакций:"
         echo
-        docker logs moderator-bot --timestamps 2>&1 | grep -E "(реакци|reaction|🔥|✅.*поставлена)"
+        docker logs moderator-bot --timestamps 2>&1 | grep -E "(реакци|reaction|🔥|✅.*поставлена|ОЧЕРЕДЬ|АДМИНКА)"
         ;;
     "http")
         echo "🌐 HTTP запросы и ответы:"
         echo
         docker logs moderator-bot --timestamps 2>&1 | grep -E "(📊|🔗|📥|📤|HTTP|Отправляем|Ответ)"
+        ;;
+    "api")
+        echo "🔧 API и админка (бот + админка):"
+        echo
+        echo "--- ЛОГИ БОТА ---"
+        docker logs moderator-bot --timestamps 2>&1 | grep -E "(АДМИНКА|ОЧЕРЕДЬ|📊|🎯|✅.*АДМИНКА|⏳.*АДМИНКА)"
+        echo
+        echo "--- ЛОГИ АДМИНКИ ---"
+        docker logs moderator-admin --timestamps --tail 20
         ;;
     "messages")
         echo "📨 Входящие сообщения:"
@@ -73,6 +82,7 @@ case "${1:-help}" in
         echo "  debug     - Отладочная информация"
         echo "  reactions - Логи реакций"
         echo "  http      - HTTP запросы и ответы"
+        echo "  api       - API и админка (комбинированные логи)"
         echo "  messages  - Входящие сообщения"
         echo "  tags      - Обработка тегов"
         echo "  all       - Все логи"

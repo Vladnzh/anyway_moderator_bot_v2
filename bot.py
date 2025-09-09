@@ -272,9 +272,10 @@ async def process_reaction_queue(context: ContextTypes.DEFAULT_TYPE):
     """Обработать очередь реакций"""
     try:
         queue = db.get_reaction_queue()
+        logger.info(f"🔍 ОЧЕРЕДЬ: Проверяем очередь реакций, найдено элементов: {len(queue)}")
         
         if queue:
-            logger.debug(f"🔄 Обрабатываем очередь реакций: {len(queue)} элементов")
+            logger.info(f"🔄 Обрабатываем очередь реакций: {len(queue)} элементов")
         
         for item in queue:
             try:
@@ -512,7 +513,7 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.debug(f"📝 Создан элемент модерации ID: {item_id}")
         
         # Данные будут отправлены только при фактической установке реакции (после одобрения)
-        logger.debug("📊 Сообщение добавлено в модерацию - данные будут отправлены после одобрения")
+        logger.info("📊 Сообщение добавлено в модерацию - данные будут отправлены после одобрения")
         
         # Отправляем сообщение о постановке в очередь
         if matched_tag['reply_pending']:
@@ -528,7 +529,7 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if delay > 0:
         logger.debug(f"⏳ Ожидание {delay}с перед реакцией...")
         await asyncio.sleep(delay)
-    
+
     # Ставим реакцию
     try:
         logger.info(f"🎯 ПОПЫТКА поставить реакцию: {matched_tag['emoji']} | Пользователь: {user_info}")
@@ -677,8 +678,12 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Тестовая команда для принудительной обработки очереди реакций"""
+    logger.info("🧪 ТЕСТ: Принудительная обработка очереди реакций")
+    queue = db.get_reaction_queue()
+    logger.info(f"🧪 ТЕСТ: В очереди {len(queue)} элементов")
+    
     await process_reaction_queue(context)
-    await update.message.reply_text("🧪 Черга реакцій оброблена")
+    await update.message.reply_text(f"🧪 Черга реакцій оброблена\n📊 Було елементів: {len(queue)}")
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик ошибок"""
