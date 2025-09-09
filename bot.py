@@ -115,6 +115,10 @@ async def link_telegram_account(code: str, user_id: int, username: str, first_na
 
 async def send_reaction_data(message, matched_tag: Dict[str, Any], media_info: Dict[str, Any], thread_name: str, status: str = "approved") -> Dict[str, Any]:
     """Отправить данные о реакции на бэкенд"""
+    logger.info(f"🚀 send_reaction_data ВЫЗВАНА! status={status}")
+    logger.info(f"🔍 BOT_SHARED_SECRET: {'✅ есть' if BOT_SHARED_SECRET else '❌ нет'}")
+    logger.info(f"🔍 ADMIN_URL: {ADMIN_URL}")
+    
     if not BOT_SHARED_SECRET:
         logger.warning("⚠️ BOT_SHARED_SECRET не настроен - данные о реакции не отправляются")
         return {"success": False, "error": "BOT_SHARED_SECRET не настроен"}
@@ -313,8 +317,9 @@ async def process_reaction_queue(context: ContextTypes.DEFAULT_TYPE):
                             thread_name = moderation_item.get('thread_name', '')
                             
                             # Отправляем данные на бэкенд
-                            await send_reaction_data(mock_message, matched_tag, media_info, thread_name, "approved")
-                            logger.debug(f"📊 Данные о реакции из очереди отправлены на бэкенд")
+                            logger.info("📊 НАЧИНАЕМ отправку данных о реакции из ОЧЕРЕДИ на бэкенд...")
+                            result = await send_reaction_data(mock_message, matched_tag, media_info, thread_name, "approved")
+                            logger.info(f"📊 РЕЗУЛЬТАТ отправки данных из очереди: {result}")
                     except Exception as e:
                         logger.error(f"❌ Ошибка отправки данных о реакции из очереди: {e}")
                 
@@ -526,8 +531,9 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Ставим реакцию
     try:
+        logger.info(f"🎯 ПОПЫТКА поставить реакцию: {matched_tag['emoji']} | Пользователь: {user_info}")
         await message.set_reaction(ReactionTypeEmoji(emoji=matched_tag['emoji']))
-        logger.info(f"✅ Реакция поставлена: {matched_tag['emoji']} | Пользователь: {user_info}")
+        logger.info(f"✅ Реакция УСПЕШНО поставлена: {matched_tag['emoji']} | Пользователь: {user_info}")
         
         log_bot_event('reaction_set', {
             'emoji': matched_tag['emoji'],
@@ -536,8 +542,9 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         })
         
         # Отправляем данные о реакции на бэкенд
-        logger.debug("📊 Отправляем данные о реакции на бэкенд...")
-        await send_reaction_data(message, matched_tag, media_info, thread_name)
+        logger.info("📊 НАЧИНАЕМ отправку данных о реакции на бэкенд...")
+        result = await send_reaction_data(message, matched_tag, media_info, thread_name)
+        logger.info(f"📊 РЕЗУЛЬТАТ отправки данных: {result}")
         
         # Отправляем сообщение об успехе
         if matched_tag['reply_ok']:
