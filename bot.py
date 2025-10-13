@@ -535,11 +535,21 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     logger.debug(f"✅ Тег найден: {matched_tag['tag']}")
-    logger.debug(f"🧵 Проверяем тред: настроен='{matched_tag.get('thread_name', '')}', текущий='{thread_name}'")
+    
+    try:
+        tag_thread_name = matched_tag.get('thread_name', '')
+        logger.debug(f"🧵 Проверяем тред: настроен='{tag_thread_name}', текущий='{thread_name}'")
 
-    # Проверяем название треда если указано
-    if matched_tag['thread_name'] and thread_name.lower() != matched_tag['thread_name'].lower():
-        logger.debug(f"🚫 Тред не совпадает: ожидается '{matched_tag['thread_name']}', получен '{thread_name}'")
+        # Проверяем название треда если указано
+        if tag_thread_name and thread_name.lower() != tag_thread_name.lower():
+            logger.debug(f"🚫 Тред не совпадает: ожидается '{tag_thread_name}', получен '{thread_name}'")
+            return
+        
+        logger.debug("✅ Проверка треда пройдена")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при проверке треда: {e}")
+        logger.error(f"❌ matched_tag: {matched_tag}")
         return
     
     logger.info(f"🎯 Тег сработал: {matched_tag['tag']} | Пользователь: {user_info}")
