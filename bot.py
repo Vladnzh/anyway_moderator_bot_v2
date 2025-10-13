@@ -535,9 +535,14 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     logger.debug(f"✅ Тег найден: {matched_tag['tag']}")
+    logger.debug(f"🔍 Тип matched_tag: {type(matched_tag)}")
+    logger.debug(f"🔍 Содержимое matched_tag: {matched_tag}")
+    logger.debug("🔍 Переходим к проверке треда...")
     
     try:
+        logger.debug("🔍 Вошли в try блок")
         tag_thread_name = matched_tag.get('thread_name', '')
+        logger.debug(f"🔍 Получили thread_name: '{tag_thread_name}'")
         logger.debug(f"🧵 Проверяем тред: настроен='{tag_thread_name}', текущий='{thread_name}'")
 
         # Проверяем название треда если указано
