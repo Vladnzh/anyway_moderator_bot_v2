@@ -4,21 +4,41 @@
 
 echo "🗑️ Очистка базы данных бота..."
 
-# Проверяем существование базы данных
-if [ ! -f "bot_data.db" ]; then
-    echo "❌ Файл bot_data.db не найден!"
+# Определяем путь к базе данных
+DB_PATH=""
+
+# Сначала проверяем переменную окружения DATABASE_PATH
+if [ -n "$DATABASE_PATH" ] && [ -f "$DATABASE_PATH" ]; then
+    DB_PATH="$DATABASE_PATH"
+    echo "🔧 Используем DATABASE_PATH: $DB_PATH"
+# Затем ищем в стандартных местах
+elif [ -f "bot_data.db" ]; then
+    DB_PATH="bot_data.db"
+elif [ -f "data/bot_data.db" ]; then
+    DB_PATH="data/bot_data.db"
+elif [ -f "./data/bot_data.db" ]; then
+    DB_PATH="./data/bot_data.db"
+else
+    echo "❌ Файл базы данных не найден!"
+    echo "   Искал в:"
+    echo "   - DATABASE_PATH: ${DATABASE_PATH:-'не установлена'}"
+    echo "   - bot_data.db"
+    echo "   - data/bot_data.db"
+    echo "   - ./data/bot_data.db"
     exit 1
 fi
 
+echo "📁 Найдена база данных: $DB_PATH"
+
 # Создаем резервную копию
 BACKUP_FILE="bot_data_backup_$(date +%Y%m%d_%H%M%S).db"
-cp bot_data.db "$BACKUP_FILE"
+cp "$DB_PATH" "$BACKUP_FILE"
 echo "💾 Создана резервная копия: $BACKUP_FILE"
 
 # Очищаем таблицы
 echo "🧹 Очищаем таблицы..."
 
-sqlite3 bot_data.db << EOF
+sqlite3 "$DB_PATH" << EOF
 -- Очищаем логи
 DELETE FROM logs;
 VACUUM;
@@ -49,7 +69,7 @@ EOF
 
 echo "✅ База данных очищена!"
 echo "📊 Статистика после очистки:"
-sqlite3 bot_data.db "SELECT 'Теги: ' || COUNT(*) FROM tags; SELECT 'Логи: ' || COUNT(*) FROM logs; SELECT 'Модерация: ' || COUNT(*) FROM moderation_queue;"
+sqlite3 "$DB_PATH" "SELECT 'Теги: ' || COUNT(*) FROM tags; SELECT 'Логи: ' || COUNT(*) FROM logs; SELECT 'Модерация: ' || COUNT(*) FROM moderation_queue;"
 
 echo ""
 echo "🔄 Для полной очистки включая теги используйте:"
@@ -62,7 +82,7 @@ if [ "$1" = "--full" ]; then
     read -p "Вы уверены? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        sqlite3 bot_data.db << EOF
+        sqlite3 "$DB_PATH" << EOF
 DELETE FROM tags;
 DELETE FROM sqlite_sequence WHERE name = 'tags';
 VACUUM;
