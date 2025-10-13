@@ -57,6 +57,26 @@ def get_file_hash(file_content: bytes) -> str:
     """Вычислить хэш файла"""
     return hashlib.md5(file_content).hexdigest()
 
+def normalize_ukrainian_text(text: str) -> str:
+    """Нормализация украинского текста для корректного сравнения"""
+    if not text:
+        return ""
+    
+    # Убираем лишние пробелы и приводим к нижнему регистру
+    normalized = text.strip().lower()
+    
+    # Заменяем возможные проблемные символы
+    replacements = {
+        'ё': 'е',  # русская ё на украинскую е
+        'ъ': '',   # твердый знак
+        'ы': 'и',  # русская ы на украинскую и
+    }
+    
+    for old, new in replacements.items():
+        normalized = normalized.replace(old, new)
+    
+    return normalized
+
 def create_hmac_signature(data: str, secret: str) -> str:
     """Создать HMAC-SHA256 подпись"""
     return hmac.new(
@@ -540,27 +560,42 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.debug("🚫 Совпадений не найдено")
         return
 
-    logger.debug(f"✅ Тег найден: {matched_tag['tag']}")
-    logger.debug(f"🔍 Тип matched_tag: {type(matched_tag)}")
-    logger.debug(f"🔍 Содержимое matched_tag: {matched_tag}")
-    logger.debug("🔍 Переходим к проверке треда...")
-    
     try:
-        logger.debug("🔍 Вошли в try блок")
+        logger.debug(f"✅ Тег найден: {matched_tag.get('tag', 'UNKNOWN')}")
+        logger.debug(f"🔍 Тип matched_tag: {type(matched_tag)}")
+        
+        # Безопасное логирование содержимого
+        try:
+            logger.debug(f"🔍 Содержимое matched_tag: {dict(matched_tag)}")
+        except Exception as log_e:
+            logger.debug(f"🔍 Ошибка логирования matched_tag: {log_e}")
+        
+        logger.debug("🔍 Переходим к проверке треда...")
+        
         tag_thread_name = matched_tag.get('thread_name', '')
         logger.debug(f"🔍 Получили thread_name: '{tag_thread_name}'")
+        
+        # Нормализуем строки для сравнения украинских символов
+        tag_thread_normalized = normalize_ukrainian_text(tag_thread_name)
+        current_thread_normalized = normalize_ukrainian_text(thread_name)
+        logger.debug(f"🧵 Нормализованное сравнение: '{tag_thread_normalized}' vs '{current_thread_normalized}'")
+        
         logger.debug(f"🧵 Проверяем тред: настроен='{tag_thread_name}', текущий='{thread_name}'")
 
-        # Проверяем название треда если указано
-        if tag_thread_name and thread_name.lower() != tag_thread_name.lower():
-            logger.debug(f"🚫 Тред не совпадает: ожидается '{tag_thread_name}', получен '{thread_name}'")
+        # Проверяем название треда если указано (используем нормализованные строки)
+        if tag_thread_normalized and current_thread_normalized != tag_thread_normalized:
+            logger.debug(f"🚫 Тред не совпадает: ожидается '{tag_thread_normalized}', получен '{current_thread_normalized}'")
             return
         
         logger.debug("✅ Проверка треда пройдена")
         
     except Exception as e:
-        logger.error(f"❌ Ошибка при проверке треда: {e}")
-        logger.error(f"❌ matched_tag: {matched_tag}")
+        logger.error(f"❌ Ошибка при проверке тега/треда: {e}")
+        logger.error(f"❌ Тип ошибки: {type(e).__name__}")
+        try:
+            logger.error(f"❌ matched_tag: {dict(matched_tag) if matched_tag else 'None'}")
+        except:
+            logger.error(f"❌ matched_tag (raw): {matched_tag}")
         return
     
     logger.info(f"🎯 Тег сработал: {matched_tag['tag']} | Пользователь: {user_info}")
