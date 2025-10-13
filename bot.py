@@ -328,8 +328,75 @@ async def process_reaction_queue(context: ContextTypes.DEFAULT_TYPE):
                 db.remove_reaction_from_queue(item['id'])
                 
             except Exception as e:
-                logger.warning(f"❌ Не удалось поставить реакцию из очереди для {item['message_id']}: {e}")
-                # Оставляем в очереди для повторной попытки
+                error_message = str(e).lower()
+                
+                # Увеличиваем счетчик попыток
+                attempts = db.increment_reaction_attempts(item['id'])
+                logger.warning(f"❌ Не удалось поставить реакцию из очереди для {item['message_id']}: {e} (попытка {attempts})")
+                
+                # Проверяем, является ли ошибка "Reaction_invalid"
+                if "reaction_invalid" in error_message:
+                    logger.info(f"🔄 Обнаружена ошибка Reaction_invalid для {item['emoji']}, пробуем запасную реакцию ❤️")
+                    
+                    try:
+                        # Пробуем поставить запасную реакцию ❤️
+                        await context.bot.set_message_reaction(
+                            chat_id=item['chat_id'],
+                            message_id=item['message_id'],
+                            reaction=ReactionTypeEmoji(emoji="❤️")
+                        )
+                        
+                        logger.info(f"✅ Запасная реакция ❤️ поставлена → сообщение {item['message_id']}")
+                        
+                        # Отправляем данные на бэкенд с запасной реакцией
+                        if item.get('moderation_id'):
+                            try:
+                                moderation_item = db.get_moderation_by_id(item['moderation_id'])
+                                if moderation_item:
+                                    class MockMessage:
+                                        def __init__(self, data):
+                                            self.chat_id = data['chat_id']
+                                            self.message_id = data['message_id']
+                                            self.text = data.get('text', '')
+                                            self.caption = data.get('caption', '')
+                                            class MockUser:
+                                                def __init__(self, user_data):
+                                                    self.id = user_data['user_id']
+                                                    self.username = user_data.get('username', '')
+                                                    self.first_name = user_data.get('first_name', '')
+                                                    self.last_name = user_data.get('last_name', '')
+                                            self.from_user = MockUser(data)
+                                    
+                                    mock_message = MockMessage(moderation_item)
+                                    matched_tag = {
+                                        'tag': moderation_item.get('tag', ''),
+                                        'counter_name': moderation_item.get('counter_name', ''),
+                                        'emoji': "❤️"  # Используем запасную реакцию
+                                    }
+                                    media_info = moderation_item.get('media_info', {})
+                                    thread_name = moderation_item.get('thread_name', '')
+                                    
+                                    logger.info("📊 НАЧИНАЕМ отправку данных о запасной реакции на бэкенд...")
+                                    result = await send_reaction_data(mock_message, matched_tag, media_info, thread_name, "approved")
+                                    logger.info(f"📊 РЕЗУЛЬТАТ отправки данных запасной реакции: {result}")
+                            except Exception as backend_e:
+                                logger.error(f"❌ Ошибка отправки данных о запасной реакции: {backend_e}")
+                        
+                        # Удаляем из очереди после успешной запасной реакции
+                        db.remove_reaction_from_queue(item['id'])
+                        
+                    except Exception as fallback_e:
+                        logger.error(f"❌ Не удалось поставить запасную реакцию ❤️ для {item['message_id']}: {fallback_e}")
+                        
+                        # Если превышено максимальное количество попыток, удаляем из очереди
+                        if attempts >= 10:
+                            logger.warning(f"🗑️ Превышено максимальное количество попыток ({attempts}) для сообщения {item['message_id']}, удаляем из очереди")
+                            db.remove_reaction_from_queue(item['id'])
+                else:
+                    # Для других ошибок проверяем лимит попыток
+                    if attempts >= 10:
+                        logger.warning(f"🗑️ Превышено максимальное количество попыток ({attempts}) для сообщения {item['message_id']}, удаляем из очереди")
+                        db.remove_reaction_from_queue(item['id'])
     
     except Exception as e:
         logger.error(f"❌ Ошибка обработки очереди реакций: {e}")

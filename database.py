@@ -121,6 +121,7 @@ class Database:
                     chat_id INTEGER NOT NULL,
                     message_id INTEGER NOT NULL,
                     emoji TEXT NOT NULL,
+                    attempts INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -142,6 +143,14 @@ class Database:
             try:
                 conn.execute("ALTER TABLE moderation_queue ADD COLUMN counter_name TEXT DEFAULT ''")
                 logger.info("✅ Добавлено поле counter_name в таблицу moderation_queue")
+            except sqlite3.OperationalError:
+                # Поле уже существует
+                pass
+            
+            # Миграция: добавляем поле attempts в reaction_queue если его нет
+            try:
+                conn.execute("ALTER TABLE reaction_queue ADD COLUMN attempts INTEGER DEFAULT 0")
+                logger.info("✅ Добавлено поле attempts в таблицу reaction_queue")
             except sqlite3.OperationalError:
                 # Поле уже существует
                 pass
@@ -434,6 +443,21 @@ class Database:
         with self.get_connection() as conn:
             conn.execute("DELETE FROM reaction_queue")
             conn.commit()
+    
+    def increment_reaction_attempts(self, reaction_id: int) -> int:
+        """Увеличить количество попыток для реакции и вернуть новое значение"""
+        with self.get_connection() as conn:
+            cursor = conn.execute("""
+                UPDATE reaction_queue 
+                SET attempts = attempts + 1 
+                WHERE id = ?
+            """, (reaction_id,))
+            conn.commit()
+            
+            # Получаем новое значение attempts
+            cursor = conn.execute("SELECT attempts FROM reaction_queue WHERE id = ?", (reaction_id,))
+            row = cursor.fetchone()
+            return row[0] if row else 0
 
 # Глобальный экземпляр базы данных
 db = Database()
