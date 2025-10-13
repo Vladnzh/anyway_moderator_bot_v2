@@ -519,7 +519,10 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif tag['match_mode'] == 'prefix':
             # Режим 2: Префикс - ищем слова которые начинаются с тега
             words = text.split()
+            logger.debug(f"🔍 Слова в тексте: {words}")
+            logger.debug(f"🔍 Ищем слова начинающиеся с: '{tag_text}'")
             for word in words:
+                logger.debug(f"🔍 Проверяем слово: '{word}' начинается с '{tag_text}'? {word.startswith(tag_text)}")
                 if word.startswith(tag_text):
                     matched_tag = tag
                     logger.info(f"✅ Найдено совпадение: {tag_text} -> {word} (префикс)")
@@ -530,6 +533,9 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not matched_tag:
         logger.debug("🚫 Совпадений не найдено")
         return
+
+    logger.debug(f"✅ Тег найден: {matched_tag['tag']}")
+    logger.debug(f"🧵 Проверяем тред: настроен='{matched_tag.get('thread_name', '')}', текущий='{thread_name}'")
 
     # Проверяем название треда если указано
     if matched_tag['thread_name'] and thread_name.lower() != matched_tag['thread_name'].lower():
