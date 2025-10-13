@@ -492,12 +492,18 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Получаем название треда
     thread_name = ""
+    logger.debug(f"🧵 is_topic_message: {message.is_topic_message}")
+    logger.debug(f"🧵 reply_to_message: {message.reply_to_message is not None}")
+    
     if message.is_topic_message and message.reply_to_message:
         try:
+            logger.debug("🧵 Пытаемся получить имя треда...")
             thread_name = message.reply_to_message.forum_topic_created.name
-            logger.debug(f"🧵 Тред: {thread_name}")
-        except:
+            logger.debug(f"🧵 Тред получен: '{thread_name}' (тип: {type(thread_name)})")
+            logger.debug(f"🧵 Тред в байтах: {thread_name.encode('utf-8') if thread_name else 'None'}")
+        except Exception as e:
             thread_name = "Unknown Thread"
+            logger.debug(f"🧵 Ошибка получения треда: {e}")
             logger.debug("🧵 Тред: Unknown Thread")
     
     # Ищем подходящий тег
