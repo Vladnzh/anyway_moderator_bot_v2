@@ -1,5 +1,10 @@
+# -*- coding: utf-8 -*-
 import os, json, datetime, asyncio, uuid, logging, hmac, hashlib
-from typing import Literal, List, Dict, Any, Optional
+try:
+    from typing import Literal, List, Dict, Any, Optional
+except ImportError:
+    # Для старых версий Python
+    pass
 from pathlib import Path
 import httpx
 import aiohttp
@@ -10,6 +15,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
+
+# Глобальный семафор для ограничения параллельных реакций (исправляет баг с быстрым апрувом)
+reaction_semaphore = asyncio.Semaphore(3)  # Максимум 3 одновременные реакции
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -24,7 +32,7 @@ if not ADMIN_TOKEN:
     print("⚠️ ADMIN_TOKEN не установлен, используется 'changeme'")
     ADMIN_TOKEN = "changeme"
 else:
-    print(f"🔑 ADMIN_TOKEN найден: {ADMIN_TOKEN[:6]}...{ADMIN_TOKEN[-4:]}")
+    print("🔑 ADMIN_TOKEN найден: {}...{}".format(ADMIN_TOKEN[:6], ADMIN_TOKEN[-4:]))
 
 if not BOT_TOKEN:
     print("⚠️ BOT_TOKEN не установлен! Установите его в .env файле или переменной окружения")
@@ -272,11 +280,55 @@ def create_hmac_signature(data: str, secret: str) -> str:
 # Функция send_reaction_to_backend удалена - данные отправляются только ботом при фактической установке реакции
 
 async def set_telegram_reaction(chat_id: int, message_id: int, emoji: str) -> bool:
-    """Поставить реакцию через Telegram API"""
+    """Поставить реакцию через Telegram API с ограничением параллелизма"""
+    async with reaction_semaphore:  # Ограничиваем параллельные запросы
+        try:
+            # Небольшая задержка между запросами для избежания rate limiting
+            await asyncio.sleep(0.1)
+            
+            bot_token = os.getenv("BOT_TOKEN")
+            if not bot_token:
+                logger.error("❌ BOT_TOKEN not found")
+                return False
+                
+            url = f"https://api.telegram.org/bot{bot_token}/setMessageReaction"
+            data = {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "reaction": json.dumps([{"type": "emoji", "emoji": emoji}])
+            }
+            
+            # Увеличиваем timeout для стабильности
+            async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as client:
+                response = await client.post(url, data=data)
+                result = response.json()
+                
+                if result.get("ok"):
+                    logger.info("✅ Reaction {} set directly via API for message {}".format(emoji, message_id))
+                    return True
+                else:
+                    error_desc = result.get('description', 'Unknown error')
+                    logger.warning("❌ Failed to set reaction: {}".format(error_desc))
+                    
+                    # Если реакция недоступна, пробуем запасную
+                    if "reaction_invalid" in error_desc.lower():
+                        logger.info("🔄 Trying fallback reaction ❤️ for message {}".format(message_id))
+                        return await set_telegram_reaction_fallback(chat_id, message_id, "❤️")
+                    
+                    return False
+                    
+        except asyncio.TimeoutError:
+            logger.error("⏰ Timeout setting reaction for message {}".format(message_id))
+            return False
+        except Exception as e:
+            logger.error("❌ Exception setting reaction for message {}: {}".format(message_id, e))
+            return False
+
+async def set_telegram_reaction_fallback(chat_id: int, message_id: int, emoji: str) -> bool:
+    """Поставить запасную реакцию без семафора (уже внутри семафора)"""
     try:
         bot_token = os.getenv("BOT_TOKEN")
         if not bot_token:
-            print("❌ BOT_TOKEN not found")
             return False
             
         url = f"https://api.telegram.org/bot{bot_token}/setMessageReaction"
@@ -286,19 +338,19 @@ async def set_telegram_reaction(chat_id: int, message_id: int, emoji: str) -> bo
             "reaction": json.dumps([{"type": "emoji", "emoji": emoji}])
         }
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
             response = await client.post(url, data=data)
             result = response.json()
             
             if result.get("ok"):
-                print(f"✅ Reaction {emoji} set directly via API for message {message_id}")
+                logger.info(f"✅ Fallback reaction {emoji} set for message {message_id}")
                 return True
             else:
-                print(f"❌ Failed to set reaction: {result.get('description', 'Unknown error')}")
+                logger.error(f"❌ Fallback reaction failed: {result.get('description', 'Unknown error')}")
                 return False
                 
     except Exception as e:
-        print(f"❌ Exception setting reaction: {e}")
+        logger.error(f"❌ Exception setting fallback reaction: {e}")
         return False
 
 @app.post("/api/moderation/{item_id}/approve")

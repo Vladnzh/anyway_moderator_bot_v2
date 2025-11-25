@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Telegram модератор-бот с SQLite базой данных
 """
@@ -14,7 +15,11 @@ import json
 import aiohttp
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+try:
+    from typing import Dict, Any, List, Optional
+except ImportError:
+    # Для старых версий Python
+    pass
 
 from telegram import Update, ReactionTypeEmoji
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes
@@ -39,19 +44,19 @@ BOT_SHARED_SECRET = os.getenv("BOT_SHARED_SECRET")
 ADMIN_URL = os.getenv("ADMIN_URL", "http://localhost:8000")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-logger.info(f"🔑 BOT_TOKEN найден: {BOT_TOKEN[:10]}...{BOT_TOKEN[-4:]}")
-logger.info(f"🔗 ADMIN_URL: {ADMIN_URL}")
-logger.info(f"🌐 FRONTEND_URL: {FRONTEND_URL}")
+logger.info("🔑 BOT_TOKEN найден: {}...{}".format(BOT_TOKEN[:10], BOT_TOKEN[-4:]))
+logger.info("🔗 ADMIN_URL: {}".format(ADMIN_URL))
+logger.info("🌐 FRONTEND_URL: {}".format(FRONTEND_URL))
 if BOT_SHARED_SECRET:
-    logger.info(f"🔐 BOT_SHARED_SECRET найден: {BOT_SHARED_SECRET[:8]}...")
+    logger.info("🔐 BOT_SHARED_SECRET найден: {}...".format(BOT_SHARED_SECRET[:8]))
     logger.debug("✅ Функции привязки аккаунтов и HTTP запросов доступны")
 else:
     logger.warning("⚠️ BOT_SHARED_SECRET не найден - функция привязки аккаунтов недоступна")
     logger.warning("⚠️ HTTP запросы на бэкенд будут отключены")
 
 # Логируем дополнительную информацию о конфигурации
-logger.debug(f"🗂️ DATABASE_PATH: {os.getenv('DATABASE_PATH', 'По умолчанию')}")
-logger.debug(f"🐳 Запуск в Docker: {'Да' if os.path.exists('/.dockerenv') else 'Нет'}")
+logger.debug("🗂️ DATABASE_PATH: {}".format(os.getenv('DATABASE_PATH', 'По умолчанию')))
+logger.debug("🐳 Запуск в Docker: {}".format('Да' if os.path.exists('/.dockerenv') else 'Нет'))
 
 def get_file_hash(file_content: bytes) -> str:
     """Вычислить хэш файла"""
@@ -289,16 +294,22 @@ async def check_media_duplicates(context: ContextTypes.DEFAULT_TYPE, message, me
     return False
 
 async def process_reaction_queue(context: ContextTypes.DEFAULT_TYPE):
-    """Обработать очередь реакций"""
+    """Обработать очередь реакций с оптимизацией"""
     try:
         queue = db.get_reaction_queue()
-        logger.info(f"🔍 ОЧЕРЕДЬ: Проверяем очередь реакций, найдено элементов: {len(queue)}")
         
-        if queue:
-            logger.info(f"🔄 Обрабатываем очередь реакций: {len(queue)} элементов")
+        if not queue:
+            return  # Не логируем если очередь пустая
+            
+        logger.info(f"🔄 Обрабатываем очередь реакций: {len(queue)} элементов")
         
-        for item in queue:
+        # Обрабатываем максимум 5 элементов за раз для избежания блокировки
+        for i, item in enumerate(queue[:5]):
             try:
+                # Добавляем небольшую задержку между реакциями
+                if i > 0:
+                    await asyncio.sleep(0.2)
+                
                 # Ставим реакцию
                 await context.bot.set_message_reaction(
                     chat_id=item['chat_id'],
@@ -338,9 +349,12 @@ async def process_reaction_queue(context: ContextTypes.DEFAULT_TYPE):
                             thread_name = moderation_item.get('thread_name', '')
                             
                             # Отправляем данные на бэкенд
-                            logger.info("📊 НАЧИНАЕМ отправку данных о реакции из ОЧЕРЕДИ на бэкенд...")
+                            logger.debug("📊 Отправляем данные о реакции из очереди на бэкенд...")
                             result = await send_reaction_data(mock_message, matched_tag, media_info, thread_name, "approved")
-                            logger.info(f"📊 РЕЗУЛЬТАТ отправки данных из очереди: {result}")
+                            if result.get('success'):
+                                logger.debug(f"📊 Данные из очереди отправлены успешно")
+                            else:
+                                logger.warning(f"📊 Ошибка отправки данных из очереди: {result}")
                     except Exception as e:
                         logger.error(f"❌ Ошибка отправки данных о реакции из очереди: {e}")
                 
@@ -498,13 +512,13 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if message.is_topic_message:
         logger.debug("🧵 Сообщение в треде")
     
-    # Получаем все теги из БД
+    # Получаем все теги из БД (теперь с кэшированием)
     tags = db.get_tags()
     if not tags:
         logger.debug("🚫 Нет настроенных тегов в базе данных")
         return
     
-    logger.debug(f"🏷️ Загружено {len(tags)} тегов из базы данных")
+    logger.debug(f"🏷️ Загружено {len(tags)} тегов из базы данных (кэш)")
     
     # Получаем текст сообщения
     text = (message.text or message.caption or "").lower()

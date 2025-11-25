@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 База данных SQLite для модератор-бота
 Заменяет JSON файлы на полноценную БД
@@ -8,8 +9,13 @@ import sqlite3
 import json
 import uuid
 import os
+import time
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+try:
+    from typing import List, Dict, Any, Optional
+except ImportError:
+    # Для старых версий Python
+    pass
 from pathlib import Path
 import logging
 
@@ -29,12 +35,29 @@ class Database:
         db_dir = Path(self.db_path).parent
         db_dir.mkdir(parents=True, exist_ok=True)
         
+        # Кэш для тегов
+        self._tags_cache = None
+        self._tags_cache_time = 0
+        self._cache_ttl = 60  # 60 секунд TTL для кэша
+        
         self.init_database()
     
     def get_connection(self):
-        """Получить соединение с БД"""
+        """Получить соединение с БД с оптимизациями"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row  # Возвращать результаты как словари
+        
+        # Включаем WAL mode для лучшей параллельности (критическая оптимизация)
+        conn.execute("PRAGMA journal_mode=WAL")
+        # Более быстрая синхронизация
+        conn.execute("PRAGMA synchronous=NORMAL")
+        # Увеличиваем кэш для лучшей производительности
+        conn.execute("PRAGMA cache_size=10000")
+        # Храним временные данные в памяти
+        conn.execute("PRAGMA temp_store=MEMORY")
+        # Оптимизируем для частых записей
+        conn.execute("PRAGMA wal_autocheckpoint=1000")
+        
         return conn
     
     def init_database(self):
@@ -160,10 +183,28 @@ class Database:
 
     # === ТЕГИ ===
     def get_tags(self) -> List[Dict[str, Any]]:
-        """Получить все теги"""
+        """Получить все теги с кэшированием"""
+        now = time.time()
+        
+        # Проверяем кэш
+        if (self._tags_cache is not None and 
+            now - self._tags_cache_time < self._cache_ttl):
+            return self._tags_cache
+        
+        # Обновляем кэш
         with self.get_connection() as conn:
             cursor = conn.execute("SELECT * FROM tags ORDER BY created_at")
-            return [dict(row) for row in cursor.fetchall()]
+            self._tags_cache = [dict(row) for row in cursor.fetchall()]
+            self._tags_cache_time = now
+            logger.debug(f"🔄 Tags cache updated: {len(self._tags_cache)} tags")
+            
+        return self._tags_cache
+    
+    def invalidate_tags_cache(self):
+        """Сбросить кэш тегов"""
+        self._tags_cache = None
+        self._tags_cache_time = 0
+        logger.debug("🗑️ Tags cache invalidated")
     
     def get_tag_by_id(self, tag_id: str) -> Optional[Dict[str, Any]]:
         """Получить тег по ID"""
@@ -190,6 +231,9 @@ class Database:
                 tag_data.get('counter_name', '')
             ))
             conn.commit()
+        
+        # Сбрасываем кэш после изменения
+        self.invalidate_tags_cache()
         return tag_id
     
     def update_tag(self, tag_id: str, tag_data: Dict[str, Any]) -> bool:
@@ -210,14 +254,26 @@ class Database:
                 tag_data.get('counter_name', ''), tag_id
             ))
             conn.commit()
-            return cursor.rowcount > 0
+            success = cursor.rowcount > 0
+            
+            # Сбрасываем кэш после изменения
+            if success:
+                self.invalidate_tags_cache()
+            
+            return success
     
     def delete_tag(self, tag_id: str) -> bool:
         """Удалить тег"""
         with self.get_connection() as conn:
             cursor = conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
             conn.commit()
-            return cursor.rowcount > 0
+            success = cursor.rowcount > 0
+            
+            # Сбрасываем кэш после изменения
+            if success:
+                self.invalidate_tags_cache()
+            
+            return success
 
     # === ЛОГИ ===
     def add_log(self, log_data: Dict[str, Any]):
