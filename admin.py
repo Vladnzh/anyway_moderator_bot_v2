@@ -769,6 +769,52 @@ async def send_broadcast(request: BroadcastRequest, _: bool = Depends(require_ap
         logger.error(f"❌ Ошибка массовой рассылки: {e}")
         return ApiResponse(success=False, message=str(e))
 
+class TestMessageRequest(BaseModel):
+    message: str
+    tg_user_id: int
+    parse_mode: Optional[str] = None
+
+@app.post("/api/broadcast/test")
+async def send_test_message(request: TestMessageRequest, _: bool = Depends(require_api_admin)):
+    """Отправить тестовое сообщение одному пользователю"""
+    try:
+        if not BOT_TOKEN:
+            return ApiResponse(success=False, message="BOT_TOKEN не настроен")
+
+        logger.info(f"📤 Отправка тестового сообщения пользователю {request.tg_user_id}")
+
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": request.tg_user_id,
+            "text": request.message
+        }
+
+        if request.parse_mode:
+            payload["parse_mode"] = request.parse_mode
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+            response = await client.post(url, json=payload)
+            result_data = response.json()
+
+            if result_data.get("ok"):
+                logger.info(f"✅ Тестовое сообщение отправлено пользователю {request.tg_user_id}")
+                return ApiResponse(
+                    success=True,
+                    message=f"Тестовое сообщение успешно отправлено",
+                    data=result_data.get("result")
+                )
+            else:
+                error_desc = result_data.get("description", "Unknown error")
+                logger.warning(f"❌ Не удалось отправить тестовое сообщение: {error_desc}")
+                return ApiResponse(
+                    success=False,
+                    message=f"Ошибка отправки: {error_desc}"
+                )
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка отправки тестового сообщения: {e}")
+        return ApiResponse(success=False, message=str(e))
+
 # Редирект с корня на новую админку
 @app.get("/")
 def root_redirect():

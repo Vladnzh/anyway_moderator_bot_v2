@@ -156,7 +156,10 @@ DB_NAME=postgres</pre>
                 <!-- Предпросмотр -->
                 <div class="broadcast-preview card-inner">
                     <h3>👥 Предпросмотр получателей</h3>
-                    <button onclick="loadBroadcastPreview()" class="btn btn-primary">🔍 Загрузить предпросмотр</button>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button onclick="loadBroadcastPreview()" class="btn btn-primary">🔍 Загрузить предпросмотр</button>
+                        <button onclick="showTestMessageDialog()" class="btn btn-secondary">📨 Отправить тест</button>
+                    </div>
 
                     <div id="broadcastPreviewResult" style="display: none;">
                         <div class="preview-stats">
@@ -1294,6 +1297,32 @@ curl -X DELETE \
 
     <!-- Уведомления -->
     <div id="notifications" class="notifications"></div>
+
+    <!-- Модальное окно для тестового сообщения -->
+    <div id="testMessageModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📨 Отправить тестовое сообщение</h3>
+                <span class="close" onclick="closeTestMessageModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="testTgUserId">Telegram User ID:</label>
+                    <input type="number" id="testTgUserId" placeholder="Введите Telegram User ID" class="form-control" />
+                    <small>ID пользователя можно найти в списке получателей выше</small>
+                </div>
+                <div class="form-group">
+                    <label for="testMessage">Текст сообщения:</label>
+                    <textarea id="testMessage" rows="4" placeholder="Введите текст тестового сообщения..." class="form-control"></textarea>
+                    <small>Будет использовано форматирование из основной формы</small>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" onclick="closeTestMessageModal()" class="btn btn-secondary">Отмена</button>
+                <button type="button" onclick="sendTestMessage()" class="btn btn-primary">📤 Отправить</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/admin.js"></script>
 </body>

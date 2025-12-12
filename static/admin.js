@@ -1226,14 +1226,22 @@ async function loadBroadcastPreview() {
                 sendBtn.disabled = true;
             } else {
                 // Показываем список пользователей
-                let html = '<table class="users-table"><thead><tr><th>Telegram ID</th><th>Username</th><th>Email</th><th>Имя</th></tr></thead><tbody>';
+                let html = '<table class="users-table"><thead><tr><th>Telegram ID</th><th>Username</th><th>Email</th><th>Имя</th><th>Действия</th></tr></thead><tbody>';
 
                 users.slice(0, 50).forEach(user => {  // Показываем максимум 50
                     html += `<tr>
                         <td><code>${user.tg_user_id}</code></td>
-                        <td>${user.username || '-'}</td>
-                        <td>${user.email || '-'}</td>
-                        <td>${user.full_name || '-'}</td>
+                        <td>${escapeHtml(user.username || '-')}</td>
+                        <td>${escapeHtml(user.email || '-')}</td>
+                        <td>${escapeHtml(user.full_name || '-')}</td>
+                        <td>
+                            <button
+                                class="btn btn-small btn-secondary"
+                                onclick="sendTestToUser('${user.tg_user_id}', '${escapeHtml(user.username || '')}')"
+                                title="Отправить тестовое сообщение">
+                                📨 Тест
+                            </button>
+                        </td>
                     </tr>`;
                 });
 
@@ -1363,15 +1371,106 @@ function clearBroadcastForm() {
     document.getElementById('sendBroadcastBtn').disabled = true;
 }
 
-// Автоматическая проверка подключения при открытии вкладки
-const originalShowTab = showTab;
-showTab = function(tabName) {
-    originalShowTab(tabName);
+// === ФУНКЦИИ ДЛЯ ТЕСТОВОЙ РАССЫЛКИ ===
 
-    // При открытии вкладки рассылки проверяем подключение
-    if (tabName === 'broadcast') {
-        setTimeout(() => {
-            checkSupabaseConnection();
-        }, 100);
+function showTestMessageDialog() {
+    // Копируем сообщение из основной формы если оно есть
+    const mainMessage = document.getElementById('broadcastMessage').value;
+    if (mainMessage) {
+        document.getElementById('testMessage').value = mainMessage;
     }
-};
+
+    document.getElementById('testMessageModal').style.display = 'block';
+}
+
+function closeTestMessageModal() {
+    document.getElementById('testMessageModal').style.display = 'none';
+    document.getElementById('testTgUserId').value = '';
+    document.getElementById('testMessage').value = '';
+}
+
+async function sendTestMessage() {
+    const tgUserId = document.getElementById('testTgUserId').value;
+    const message = document.getElementById('testMessage').value;
+    const parseMode = document.getElementById('broadcastParseMode').value || null;
+
+    // Валидация
+    if (!tgUserId) {
+        showNotification('Введите Telegram User ID', 'error');
+        return;
+    }
+
+    if (!message) {
+        showNotification('Введите текст сообщения', 'error');
+        return;
+    }
+
+    try {
+        showNotification('Отправка тестового сообщения...', 'info');
+
+        const response = await apiRequest('POST', '/broadcast/test', {
+            tg_user_id: parseInt(tgUserId),
+            message: message,
+            parse_mode: parseMode
+        });
+
+        if (response.success) {
+            showNotification('Тестовое сообщение отправлено успешно!', 'success');
+            closeTestMessageModal();
+        } else {
+            showNotification('Ошибка: ' + response.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка отправки тестового сообщения:', error);
+        showNotification('Ошибка отправки тестового сообщения', 'error');
+    }
+}
+
+// Функция для быстрой отправки тестового сообщения из списка
+function sendTestToUser(tgUserId, username) {
+    document.getElementById('testTgUserId').value = tgUserId;
+
+    // Если есть сообщение в основной форме, используем его
+    const mainMessage = document.getElementById('broadcastMessage').value;
+    if (mainMessage) {
+        document.getElementById('testMessage').value = mainMessage;
+    } else {
+        document.getElementById('testMessage').value = `Привет! Это тестовое сообщение для @${username || tgUserId}`;
+    }
+
+    showTestMessageDialog();
+}
+
+// Расширяем функцию showTab для автоматической проверки Supabase
+(function() {
+    const originalShowTab = window.showTab;
+    window.showTab = function(tabName) {
+        if (originalShowTab) {
+            originalShowTab.call(this, tabName);
+        }
+
+        // При открытии вкладки рассылки проверяем подключение
+        if (tabName === 'broadcast') {
+            setTimeout(() => {
+                checkSupabaseConnection();
+            }, 100);
+        }
+    };
+})();
+
+// Закрытие модального окна теста по клику вне его и по Escape
+window.addEventListener('click', function(event) {
+    const testModal = document.getElementById('testMessageModal');
+    if (event.target === testModal) {
+        closeTestMessageModal();
+    }
+});
+
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const testModal = document.getElementById('testMessageModal');
+        if (testModal && testModal.style.display === 'block') {
+            closeTestMessageModal();
+        }
+    }
+});
