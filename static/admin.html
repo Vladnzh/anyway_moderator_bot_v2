@@ -90,11 +90,6 @@
             <section id="broadcastTab" class="tab-content card" style="display: none;">
                 <h2>📢 Массовая рассылка</h2>
 
-                <div class="broadcast-warning alert-warning">
-                    <strong>⚠️ Внимание!</strong> Сообщение будет отправлено всем пользователям с привязанным Telegram.
-                    Обязательно проверьте предпросмотр перед отправкой!
-                </div>
-
                 <!-- Настройка подключения -->
                 <div class="broadcast-connection card-inner">
                     <h3>🔌 Статус подключения к Supabase</h3>
@@ -113,6 +108,75 @@ DB_USER=postgres
 DB_PASSWORD=your_password
 DB_NAME=postgres</pre>
                         <p>После изменений перезапустите админ-панель.</p>
+                    </div>
+                </div>
+
+                <!-- Фильтры аудитории -->
+                <div class="audience-filters-section card-inner">
+                    <h3>🎯 Фильтры аудитории</h3>
+                    <p class="section-hint">Настройте фильтры для выборки получателей рассылки</p>
+
+                    <div class="form-group">
+                        <label for="filterMarathon">Марафон:</label>
+                        <select id="filterMarathon" class="form-control">
+                            <option value="">-- Все марафоны --</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="filterIsPurchased">Статус покупки:</label>
+                            <select id="filterIsPurchased" class="form-control">
+                                <option value="">-- Любой --</option>
+                                <option value="true">✅ Купили</option>
+                                <option value="false">❌ Не купили</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="filterHasAccess">Активный доступ:</label>
+                            <select id="filterHasAccess" class="form-control">
+                                <option value="">-- Любой --</option>
+                                <option value="true">✅ Есть доступ</option>
+                                <option value="false">❌ Нет доступа</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="filterHasStarted">Начал заниматься:</label>
+                            <select id="filterHasStarted" class="form-control">
+                                <option value="">-- Любой --</option>
+                                <option value="true">✅ Начал (выполнил хотя бы 1 день)</option>
+                                <option value="false">❌ Не начал (0 дней)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="filterProgressMin">Прогресс от (%):</label>
+                            <input type="number" id="filterProgressMin" class="form-control" min="0" max="100" placeholder="0" />
+                        </div>
+                        <div class="form-group">
+                            <label for="filterProgressMax">Прогресс до (%):</label>
+                            <input type="number" id="filterProgressMax" class="form-control" min="0" max="100" placeholder="100" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="filterCompletedDaysMin">Выполнено дней от:</label>
+                            <input type="number" id="filterCompletedDaysMin" class="form-control" min="0" placeholder="0" />
+                        </div>
+                        <div class="form-group">
+                            <label for="filterCompletedDaysMax">Выполнено дней до:</label>
+                            <input type="number" id="filterCompletedDaysMax" class="form-control" min="0" placeholder="" />
+                        </div>
+                    </div>
+
+                    <div class="filter-actions">
+                        <button onclick="clearFilters()" class="btn btn-secondary">🗑️ Сбросить фильтры</button>
                     </div>
                 </div>
 
@@ -143,21 +207,13 @@ DB_NAME=postgres</pre>
                             Markdown: **жирный**, _курсив_
                         </small>
                     </div>
-
-                    <div class="form-group">
-                        <label>Фильтры пользователей:</label>
-                        <div class="alert-info">
-                            <strong>ℹ️ Информация:</strong> Сейчас рассылка отправляется всем пользователям с привязанным Telegram.
-                            Фильтры будут добавлены в следующей версии (см. TODO_BROADCAST_DATA.md).
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Предпросмотр -->
                 <div class="broadcast-preview card-inner">
                     <h3>👥 Предпросмотр получателей</h3>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <button onclick="loadBroadcastPreview()" class="btn btn-primary">🔍 Загрузить предпросмотр</button>
+                        <button onclick="loadFilteredPreview()" class="btn btn-primary" id="previewAudienceBtn">🔍 Загрузить предпросмотр</button>
                         <button onclick="showTestMessageDialog()" class="btn btn-secondary">📨 Отправить тест</button>
                     </div>
 
@@ -181,7 +237,7 @@ DB_NAME=postgres</pre>
                 <!-- Кнопка отправки -->
                 <div class="broadcast-actions">
                     <button
-                        onclick="sendBroadcast()"
+                        onclick="sendBroadcastWithFilters()"
                         class="btn btn-success btn-lg"
                         id="sendBroadcastBtn"
                         disabled

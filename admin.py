@@ -10,7 +10,10 @@ import httpx
 import aiohttp
 from database import db
 from logger_config import setup_logging, log_bot_event
-from supabase_client import SupabasePool, query_users_for_broadcast
+from supabase_client import (
+    SupabasePool, query_users_for_broadcast,
+    get_marathons_list, query_users_by_audience
+)
 from fastapi import FastAPI, Request, Form, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -814,6 +817,171 @@ async def send_test_message(request: TestMessageRequest, _: bool = Depends(requi
     except Exception as e:
         logger.error(f"❌ Ошибка отправки тестового сообщения: {e}")
         return ApiResponse(success=False, message=str(e))
+
+# ---- API для работы с фильтрами рассылки ----
+
+class FilteredPreviewRequest(BaseModel):
+    filters: Dict[str, Any] = {}
+
+class FilteredBroadcastRequest(BaseModel):
+    message: str
+    parse_mode: Optional[str] = None
+    filters: Dict[str, Any] = {}
+
+@app.get("/api/marathons")
+async def list_marathons(_: bool = Depends(require_api_admin)):
+    """Получить список доступных марафонов для фильтрации"""
+    try:
+        if not SupabasePool.is_available():
+            return ApiResponse(success=False, message="Supabase не настроен")
+
+        marathons = await get_marathons_list()
+        return ApiResponse(success=True, data=marathons)
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения марафонов: {e}")
+        return ApiResponse(success=False, message=str(e))
+
+
+@app.post("/api/broadcast/preview-filtered")
+async def preview_filtered_users(request: FilteredPreviewRequest, _: bool = Depends(require_api_admin)):
+    """Предпросмотр пользователей по фильтрам (без сохранения аудитории)"""
+    try:
+        if not SupabasePool.is_available():
+            return UserFilterResponse(
+                success=False,
+                message="Supabase не настроен",
+                users=[],
+                count=0
+            )
+
+        users = await query_users_by_audience(filters=request.filters)
+
+        if not users:
+            return UserFilterResponse(
+                success=True,
+                users=[],
+                count=0,
+                message="Пользователи не найдены по заданным фильтрам"
+            )
+
+        # Преобразуем в нужный формат
+        telegram_users = []
+        for user in users:
+            telegram_users.append({
+                "tg_user_id": str(user.get("telegram_id", "")),
+                "username": user.get("telegram_username", ""),
+                "email": user.get("email", ""),
+                "full_name": user.get("display_name") or f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+                "marathon_title": user.get("marathon_title", ""),
+                "is_purchased": user.get("is_purchased", False),
+                "has_active_access": user.get("has_active_access", False),
+                "progress_percent": user.get("progress_percent", 0),
+                "completed_days": user.get("completed_days_in_marathon", 0)
+            })
+
+        return UserFilterResponse(
+            success=True,
+            users=telegram_users,
+            count=len(telegram_users),
+            message=f"Найдено {len(telegram_users)} пользователей"
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка предпросмотра по фильтрам: {e}")
+        return UserFilterResponse(
+            success=False,
+            message=str(e),
+            users=[],
+            count=0
+        )
+
+
+@app.post("/api/broadcast/send-filtered")
+async def send_broadcast_filtered(
+    request: FilteredBroadcastRequest,
+    _: bool = Depends(require_api_admin)
+):
+    """Отправить рассылку пользователям по фильтрам (без сохранения аудитории)"""
+    try:
+        if not BOT_TOKEN:
+            return ApiResponse(success=False, message="BOT_TOKEN не настроен")
+
+        if not SupabasePool.is_available():
+            return ApiResponse(success=False, message="Supabase не настроен")
+
+        # Получаем пользователей по фильтрам
+        users = await query_users_by_audience(filters=request.filters)
+
+        if not users:
+            return ApiResponse(
+                success=False,
+                message="Не найдено пользователей по заданным фильтрам"
+            )
+
+        logger.info(f"📤 Начинаем рассылку по фильтрам: {len(users)} пользователей")
+
+        # Отправляем сообщения
+        success_count = 0
+        failed_count = 0
+        failed_users = []
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            for user in users:
+                tg_user_id = user.get("telegram_id")
+                if not tg_user_id:
+                    continue
+
+                try:
+                    await asyncio.sleep(0.05)  # Rate limiting
+
+                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                    payload = {
+                        "chat_id": tg_user_id,
+                        "text": request.message
+                    }
+
+                    if request.parse_mode:
+                        payload["parse_mode"] = request.parse_mode
+
+                    response = await client.post(url, json=payload)
+                    result_data = response.json()
+
+                    if result_data.get("ok"):
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                        failed_users.append({
+                            "tg_user_id": tg_user_id,
+                            "username": user.get("telegram_username", ""),
+                            "error": result_data.get("description", "Unknown error")
+                        })
+
+                except Exception as e:
+                    failed_count += 1
+                    failed_users.append({
+                        "tg_user_id": tg_user_id,
+                        "username": user.get("telegram_username", ""),
+                        "error": str(e)
+                    })
+
+        logger.info(f"📊 Рассылка завершена: успешно={success_count}, ошибок={failed_count}")
+
+        return ApiResponse(
+            success=True,
+            message=f"Рассылка завершена: отправлено {success_count}, ошибок {failed_count}",
+            data={
+                "total": len(users),
+                "success": success_count,
+                "failed": failed_count,
+                "failed_users": failed_users
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка рассылки по фильтрам: {e}")
+        return ApiResponse(success=False, message=str(e))
+
 
 # Редирект с корня на новую админку
 @app.get("/")
