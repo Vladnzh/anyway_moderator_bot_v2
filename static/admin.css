@@ -2627,3 +2627,334 @@ body {
     background: rgba(51, 65, 85, 0.8);
     color: #e2e8f0;
 }
+
+/* ========================================
+   HTML Editor - Dark Theme
+   ======================================== */
+
+.html-editor-wrapper {
+    background: #1e293b;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    overflow: hidden;
+}
+
+.html-editor-wrapper .editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #0f172a;
+    border-bottom: 1px solid #334155;
+}
+
+.html-editor-wrapper .editor-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #e2e8f0;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.html-editor-wrapper .editor-title svg {
+    stroke: #60a5fa;
+}
+
+.html-editor-wrapper .char-counter {
+    font-size: 12px;
+    color: #64748b;
+    font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.html-editor-wrapper .char-counter span {
+    color: #94a3b8;
+}
+
+/* Панель инструментов */
+.html-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 12px;
+    background: #0f172a;
+    border-bottom: 1px solid #334155;
+    flex-wrap: wrap;
+}
+
+.toolbar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #94a3b8;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.toolbar-btn:hover {
+    background: #334155;
+    color: #e2e8f0;
+}
+
+.toolbar-btn:active {
+    background: #3b82f6;
+    color: white;
+}
+
+.toolbar-sep {
+    width: 1px;
+    height: 20px;
+    background: #334155;
+    margin: 0 8px;
+}
+
+/* Текстовое поле */
+.html-textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 16px;
+    background: #1e293b;
+    border: none;
+    color: #e2e8f0;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+}
+
+.html-textarea::placeholder {
+    color: #475569;
+}
+
+.html-textarea:focus {
+    background: #1e293b;
+}
+
+/* Scrollbar для textarea */
+.html-textarea::-webkit-scrollbar {
+    width: 8px;
+}
+
+.html-textarea::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+
+.html-textarea::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 4px;
+}
+
+.html-textarea::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* Footer с подсказками */
+.html-editor-wrapper .editor-footer {
+    padding: 10px 16px;
+    background: #0f172a;
+    border-top: 1px solid #334155;
+}
+
+.telegram-formatting-hints {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.telegram-formatting-hints .hint-badge {
+    color: #64748b;
+    font-weight: 500;
+}
+
+.telegram-formatting-hints code {
+    background: #334155;
+    color: #60a5fa;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 11px;
+}
+
+/* Editor footer row */
+.editor-footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+/* Checkbox option */
+.checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #94a3b8;
+    white-space: nowrap;
+}
+
+.checkbox-option input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #3b82f6;
+    cursor: pointer;
+}
+
+.checkbox-option:hover {
+    color: #e2e8f0;
+}
+
+/* ========================================
+   Emoji Picker Modal
+   ======================================== */
+
+.emoji-modal .modal-content {
+    max-width: 400px;
+}
+
+.emoji-modal-content {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.emoji-search {
+    padding: 12px 16px;
+    border-bottom: 1px solid #334155;
+}
+
+.emoji-search input {
+    width: 100%;
+    padding: 10px 14px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 14px;
+    outline: none;
+}
+
+.emoji-search input:focus {
+    border-color: #3b82f6;
+}
+
+.emoji-search input::placeholder {
+    color: #64748b;
+}
+
+.emoji-categories {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    background: #0f172a;
+    border-bottom: 1px solid #334155;
+    overflow-x: auto;
+}
+
+.emoji-cat-btn {
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.emoji-cat-btn:hover {
+    background: #334155;
+}
+
+.emoji-cat-btn.active {
+    background: #3b82f6;
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    padding: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.emoji-grid::-webkit-scrollbar {
+    width: 8px;
+}
+
+.emoji-grid::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+
+.emoji-grid::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 4px;
+}
+
+.emoji-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    font-size: 24px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.emoji-item:hover {
+    background: #334155;
+    transform: scale(1.2);
+}
+
+/* Emoji picker button in toolbar */
+.emoji-picker-btn {
+    font-size: 18px !important;
+}
+
+/* Emoji input wrapper for tag settings */
+.emoji-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.emoji-input-wrapper input {
+    flex: 1;
+}
+
+.btn-emoji-picker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: #334155;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.btn-emoji-picker:hover {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}

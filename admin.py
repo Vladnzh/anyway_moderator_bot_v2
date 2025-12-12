@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os, json, datetime, asyncio, uuid, logging, hmac, hashlib
+from contextlib import asynccontextmanager
 try:
     from typing import Literal, List, Dict, Any, Optional
 except ImportError:
@@ -103,7 +104,27 @@ class ApiResponse(BaseModel):
     data: Any = None
 
 # ---- FastAPI приложение ----
-app = FastAPI(title="Moderator Bot Admin API", version="2.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan events: startup и shutdown."""
+    # Startup
+    logger.info("🚀 Запуск админ-панели...")
+    try:
+        await SupabasePool.initialize()
+    except Exception as e:
+        logger.warning(f"⚠️ Не удалось инициализировать Supabase: {e}")
+        logger.warning("⚠️ Функция массовой рассылки будет недоступна")
+
+    yield
+
+    # Shutdown
+    logger.info("🛑 Остановка админ-панели...")
+    try:
+        await SupabasePool.close()
+    except Exception as e:
+        logger.error(f"❌ Ошибка при закрытии пула Supabase: {e}")
+
+app = FastAPI(title="Moderator Bot Admin API", version="2.0", lifespan=lifespan)
 
 # Авторизация
 def require_admin(token: str = Form(...)):
@@ -555,6 +576,7 @@ class BroadcastRequest(BaseModel):
     message: str  # Текст сообщения
     filters: Optional[Dict[str, Any]] = None  # Фильтры пользователей (TODO: добавить поддержку)
     parse_mode: Optional[str] = None  # HTML, Markdown или None
+    disable_web_page_preview: bool = True  # Отключить превью ссылок
 
 class UserFilterResponse(BaseModel):
     success: bool
@@ -724,7 +746,8 @@ async def send_broadcast(request: BroadcastRequest, _: bool = Depends(require_ap
                     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                     payload = {
                         "chat_id": tg_user_id,
-                        "text": request.message
+                        "text": request.message,
+                        "disable_web_page_preview": request.disable_web_page_preview
                     }
 
                     if request.parse_mode:
@@ -776,6 +799,7 @@ class TestMessageRequest(BaseModel):
     message: str
     tg_user_id: int
     parse_mode: Optional[str] = None
+    disable_web_page_preview: bool = True  # Отключить превью ссылок
 
 @app.post("/api/broadcast/test")
 async def send_test_message(request: TestMessageRequest, _: bool = Depends(require_api_admin)):
@@ -789,7 +813,8 @@ async def send_test_message(request: TestMessageRequest, _: bool = Depends(requi
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         payload = {
             "chat_id": request.tg_user_id,
-            "text": request.message
+            "text": request.message,
+            "disable_web_page_preview": request.disable_web_page_preview
         }
 
         if request.parse_mode:
@@ -827,6 +852,7 @@ class FilteredBroadcastRequest(BaseModel):
     message: str
     parse_mode: Optional[str] = None
     filters: Dict[str, Any] = {}
+    disable_web_page_preview: bool = True  # Отключить превью ссылок
 
 @app.get("/api/marathons")
 async def list_marathons(_: bool = Depends(require_api_admin)):
@@ -954,7 +980,8 @@ async def send_broadcast_filtered(
                     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                     payload = {
                         "chat_id": tg_user_id,
-                        "text": request.message
+                        "text": request.message,
+                        "disable_web_page_preview": request.disable_web_page_preview
                     }
 
                     if request.parse_mode:
@@ -1010,30 +1037,6 @@ def admin_redirect():
 
 # Статические файлы (должно быть в конце)
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# ---- Startup/Shutdown Events ----
-@app.on_event("startup")
-async def startup_event():
-    """Инициализация при старте приложения."""
-    logger.info("🚀 Запуск админ-панели...")
-
-    # Инициализируем пул подключений к Supabase
-    try:
-        await SupabasePool.initialize()
-    except Exception as e:
-        logger.warning(f"⚠️ Не удалось инициализировать Supabase: {e}")
-        logger.warning("⚠️ Функция массовой рассылки будет недоступна")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Очистка при остановке приложения."""
-    logger.info("🛑 Остановка админ-панели...")
-
-    # Закрываем пул подключений к Supabase
-    try:
-        await SupabasePool.close()
-    except Exception as e:
-        logger.error(f"❌ Ошибка при закрытии пула Supabase: {e}")
 
 if __name__ == "__main__":
     import uvicorn

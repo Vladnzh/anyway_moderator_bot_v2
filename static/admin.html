@@ -144,25 +144,73 @@
                     <!-- Правая колонка: Редактор + Превью -->
                     <div class="broadcast-editor-col">
                         <div class="editor-preview-container">
-                            <!-- Редактор -->
-                            <div class="message-editor">
-                                <div class="editor-toolbar">
-                                    <select id="broadcastParseMode" class="parse-mode-select" onchange="updateMessagePreview()">
-                                        <option value="">Текст</option>
-                                        <option value="HTML">HTML</option>
-                                        <option value="Markdown">Markdown</option>
-                                    </select>
+                            <!-- HTML редактор -->
+                            <div class="message-editor html-editor-wrapper">
+                                <div class="editor-header">
+                                    <div class="editor-title">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                        </svg>
+                                        <span>HTML редактор</span>
+                                    </div>
                                     <span class="char-counter"><span id="charCount">0</span>/4096</span>
                                 </div>
+
+                                <!-- Панель инструментов -->
+                                <div class="html-toolbar">
+                                    <button type="button" class="toolbar-btn" onclick="insertTag('b')" title="Жирный (Ctrl+B)">
+                                        <strong>B</strong>
+                                    </button>
+                                    <button type="button" class="toolbar-btn" onclick="insertTag('i')" title="Курсив (Ctrl+I)">
+                                        <em>I</em>
+                                    </button>
+                                    <button type="button" class="toolbar-btn" onclick="insertTag('u')" title="Подчеркнутый (Ctrl+U)">
+                                        <u>U</u>
+                                    </button>
+                                    <button type="button" class="toolbar-btn" onclick="insertTag('s')" title="Зачеркнутый">
+                                        <s>S</s>
+                                    </button>
+                                    <span class="toolbar-sep"></span>
+                                    <button type="button" class="toolbar-btn" onclick="insertTag('code')" title="Код">
+                                        &lt;/&gt;
+                                    </button>
+                                    <button type="button" class="toolbar-btn" onclick="insertTag('pre')" title="Блок кода">
+                                        PRE
+                                    </button>
+                                    <span class="toolbar-sep"></span>
+                                    <button type="button" class="toolbar-btn" onclick="insertLink()" title="Вставить ссылку (Ctrl+K)">
+                                        🔗
+                                    </button>
+                                    <span class="toolbar-sep"></span>
+                                    <button type="button" class="toolbar-btn emoji-picker-btn" onclick="openEmojiPicker()" title="Выбрать emoji">
+                                        😀
+                                    </button>
+                                </div>
+
                                 <textarea
                                     id="broadcastMessage"
-                                    placeholder="Введите текст сообщения..."
-                                    class="message-textarea"
+                                    class="html-textarea"
+                                    placeholder="Введите HTML сообщение...&#10;&#10;Поддерживаемые теги:&#10;<b>жирный</b>&#10;<i>курсив</i>&#10;<u>подчеркнутый</u>&#10;<s>зачеркнутый</s>&#10;<code>код</code>&#10;<a href='url'>ссылка</a>"
                                     oninput="updateMessagePreview()"
                                 ></textarea>
-                                <div class="editor-hints">
-                                    <span class="hint-item" title="HTML: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;code&gt;код&lt;/code&gt;">HTML</span>
-                                    <span class="hint-item" title="Markdown: **жирный**, _курсив_, `код`">MD</span>
+
+                                <div class="editor-footer">
+                                    <div class="editor-footer-row">
+                                        <div class="telegram-formatting-hints">
+                                            <span class="hint-badge">HTML:</span>
+                                            <code>&lt;b&gt;</code>
+                                            <code>&lt;i&gt;</code>
+                                            <code>&lt;u&gt;</code>
+                                            <code>&lt;s&gt;</code>
+                                            <code>&lt;code&gt;</code>
+                                            <code>&lt;a href=""&gt;</code>
+                                        </div>
+                                        <label class="checkbox-option">
+                                            <input type="checkbox" id="disableLinkPreview" checked>
+                                            <span>Без превью ссылок</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
@@ -172,7 +220,7 @@
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="#229ED9">
                                         <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161l-1.968 9.273c-.146.658-.537.818-1.084.508l-3-2.211-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.332-.373-.119l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.954l11.578-4.458c.537-.194 1.006.131.823.946z"/>
                                     </svg>
-                                    <span>Превью сообщения</span>
+                                    <span>Превью в Telegram</span>
                                 </div>
                                 <div class="tg-message-bubble">
                                     <div id="messagePreview" class="tg-message-text">
@@ -1215,12 +1263,15 @@ curl -X DELETE \
                     </div>
                     <div class="form-group">
                         <label for="modalEmoji">Реакция:</label>
-                        <input type="text" id="modalEmoji" name="emoji" placeholder="🍓" required />
+                        <div class="emoji-input-wrapper">
+                            <input type="text" id="modalEmoji" name="emoji" placeholder="🍓" required />
+                            <button type="button" class="btn-emoji-picker" onclick="openEmojiPickerForField('modalEmoji')" title="Выбрать emoji">😀</button>
+                        </div>
                         <small>Эмодзи-реакция, которая будет добавлена к сообщению</small>
                     </div>
                     <div class="form-group">
                         <label for="modalDelay">Задержка реакции (сек):</label>
-                        <input type="number" id="modalDelay" name="delay" min="0" max="60" value="0" />
+                        <input type="number" id="modalDelay" name="delay" min="0" max="60" value="10" />
                         <small>Задержка перед добавлением реакции (0-60 секунд)</small>
                     </div>
                 </div>
@@ -1335,43 +1386,13 @@ curl -X DELETE \
                     </select>
                 </div>
 
-                <div class="filter-row">
-                    <div class="filter-group">
-                        <label for="filterIsPurchased">Покупка</label>
-                        <select id="filterIsPurchased" class="form-control">
-                            <option value="">Любой</option>
-                            <option value="true">Купили</option>
-                            <option value="false">Не купили</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filterHasAccess">Доступ</label>
-                        <select id="filterHasAccess" class="form-control">
-                            <option value="">Любой</option>
-                            <option value="true">Есть</option>
-                            <option value="false">Нет</option>
-                        </select>
-                    </div>
-                </div>
-
                 <div class="filter-group">
-                    <label for="filterHasStarted">Начал заниматься</label>
-                    <select id="filterHasStarted" class="form-control">
+                    <label for="filterIsPurchased">Покупка</label>
+                    <select id="filterIsPurchased" class="form-control">
                         <option value="">Любой</option>
-                        <option value="true">Да</option>
-                        <option value="false">Нет</option>
+                        <option value="true">Купили</option>
+                        <option value="false">Не купили</option>
                     </select>
-                </div>
-
-                <div class="filter-row">
-                    <div class="filter-group">
-                        <label>Прогресс (%)</label>
-                        <div class="range-inputs">
-                            <input type="number" id="filterProgressMin" class="form-control" min="0" max="100" placeholder="от" />
-                            <span class="range-sep">—</span>
-                            <input type="number" id="filterProgressMax" class="form-control" min="0" max="100" placeholder="до" />
-                        </div>
-                    </div>
                 </div>
 
                 <div class="filter-row">
@@ -1392,28 +1413,54 @@ curl -X DELETE \
         </div>
     </div>
 
-    <div id="testMessageModal" class="modal">
-        <div class="modal-content">
+    <div id="testMessageModal" class="modal filter-modal">
+        <div class="modal-content filter-modal-content">
             <div class="modal-header">
                 <h3>Отправить тестовое сообщение</h3>
                 <span class="close" onclick="closeTestMessageModal()">&times;</span>
             </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="testTgUserId">Telegram User ID:</label>
+            <div class="modal-body filter-modal-body">
+                <div class="filter-group">
+                    <label for="testTgUserId">Telegram User ID</label>
                     <input type="number" id="testTgUserId" placeholder="Введите Telegram User ID" class="form-control" />
                     <small>ID пользователя можно найти в списке получателей</small>
                 </div>
-                <div class="form-group">
-                    <label for="testMessage">Текст сообщения:</label>
+                <div class="filter-group">
+                    <label for="testMessage">Текст сообщения</label>
                     <textarea id="testMessage" rows="4" placeholder="Введите текст тестового сообщения..." class="form-control"></textarea>
                     <small>Будет использовано форматирование из основной формы</small>
                 </div>
             </div>
-            <div class="modal-actions">
+            <div class="modal-actions filter-modal-actions">
                 <button type="button" onclick="closeTestMessageModal()" class="btn btn-secondary">Отмена</button>
                 <button type="button" onclick="sendTestMessage()" class="btn btn-primary">Отправить</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Emoji Picker Modal -->
+    <div id="emojiPickerModal" class="modal emoji-modal">
+        <div class="modal-content emoji-modal-content">
+            <div class="modal-header">
+                <h3>Выберите emoji</h3>
+                <span class="close" onclick="closeEmojiPicker()">&times;</span>
+            </div>
+            <div class="emoji-search">
+                <input type="text" id="emojiSearch" placeholder="Поиск emoji..." oninput="filterEmojis()">
+            </div>
+            <div class="emoji-categories">
+                <button class="emoji-cat-btn active" onclick="showEmojiCategory('smileys')" data-cat="smileys">😀</button>
+                <button class="emoji-cat-btn" onclick="showEmojiCategory('gestures')" data-cat="gestures">👋</button>
+                <button class="emoji-cat-btn" onclick="showEmojiCategory('hearts')" data-cat="hearts">❤️</button>
+                <button class="emoji-cat-btn" onclick="showEmojiCategory('animals')" data-cat="animals">🐱</button>
+                <button class="emoji-cat-btn" onclick="showEmojiCategory('food')" data-cat="food">🍕</button>
+                <button class="emoji-cat-btn" onclick="showEmojiCategory('activities')" data-cat="activities">⚽</button>
+                <button class="emoji-cat-btn" onclick="showEmojiCategory('travel')" data-cat="travel">🚗</button>
+                <button class="emoji-cat-btn" onclick="showEmojiCategory('objects')" data-cat="objects">💡</button>
+                <button class="emoji-cat-btn" onclick="showEmojiCategory('symbols')" data-cat="symbols">✅</button>
+                <button class="emoji-cat-btn" onclick="showEmojiCategory('flags')" data-cat="flags">🇺🇦</button>
+            </div>
+            <div id="emojiGrid" class="emoji-grid"></div>
         </div>
     </div>
 

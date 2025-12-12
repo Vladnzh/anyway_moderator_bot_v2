@@ -81,29 +81,14 @@ async def query_users_for_broadcast(
     """
     Запросить пользователей для массовой рассылки.
 
+    Использует view telegram_marathon_users для выборки.
+
     Args:
-        filters: Словарь с условиями фильтрации (пока не реализовано, заглушка)
-        select_fields: Список полей для выборки
+        filters: Словарь с условиями фильтрации
+        select_fields: Список полей для выборки (игнорируется, используются стандартные поля)
 
     Returns:
         Список пользователей с tg_user_id
-
-    # TODO: Реализовать фильтрацию пользователей
-    # Примеры фильтров:
-    # - По дате регистрации: {"created_at_gte": "2024-01-01"}
-    # - По email домену: {"email_like": "%@gmail.com"}
-    # - По статусу: {"status": "active"}
-    # - Комбинированные фильтры
-
-    # TODO: Определить структуру таблицы users в Supabase
-    # Обязательные поля:
-    # - tg_user_id (bigint) - Telegram User ID
-    # Опциональные поля:
-    # - username (text)
-    # - email (text)
-    # - full_name (text)
-    # - created_at (timestamp)
-    # - status (text)
     """
 
     pool = SupabasePool.get_pool()
@@ -111,39 +96,55 @@ async def query_users_for_broadcast(
         logger.error("❌ Пул Supabase недоступен")
         return []
 
-    # Выбираем поля (по умолчанию только необходимые для рассылки)
-    if select_fields is None:
-        select_fields = ["tg_user_id", "username", "email", "full_name"]
+    if not filters:
+        filters = {}
 
-    fields = ", ".join(select_fields)
+    # Строим WHERE условия на основе фильтров
+    conditions = []
+    params = []
+    param_idx = 1
 
-    # TODO: Добавить поддержку фильтров
-    # Сейчас просто выбираем всех пользователей с tg_user_id
+    # Фильтр по марафону
+    if filters.get('marathon_ref_id'):
+        conditions.append(f"marathon_ref_id = ${param_idx}")
+        params.append(filters['marathon_ref_id'])
+        param_idx += 1
+
+    # Фильтр по покупке
+    if 'is_purchased' in filters and filters['is_purchased'] is not None:
+        conditions.append(f"is_purchased = ${param_idx}")
+        params.append(filters['is_purchased'])
+        param_idx += 1
+
+    # Фильтр по выполненным дням (минимум)
+    if filters.get('completed_days_min') is not None:
+        conditions.append(f"completed_days_in_marathon >= ${param_idx}")
+        params.append(filters['completed_days_min'])
+        param_idx += 1
+
+    # Фильтр по выполненным дням (максимум)
+    if filters.get('completed_days_max') is not None:
+        conditions.append(f"completed_days_in_marathon <= ${param_idx}")
+        params.append(filters['completed_days_max'])
+        param_idx += 1
+
+    # Собираем запрос
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
+
     query = f"""
-        SELECT {fields}
-        FROM users
-        WHERE tg_user_id IS NOT NULL
+        SELECT DISTINCT
+            telegram_id as tg_user_id,
+            telegram_username as username,
+            email,
+            display_name as full_name
+        FROM telegram_marathon_users
+        WHERE telegram_id IS NOT NULL AND {where_clause}
+        ORDER BY telegram_id
     """
-
-    # TODO: Добавить параметризованные фильтры
-    # Пример:
-    # if filters:
-    #     conditions = []
-    #     params = []
-    #     for key, value in filters.items():
-    #         if key == "created_at_gte":
-    #             conditions.append("created_at >= $" + str(len(params) + 1))
-    #             params.append(value)
-    #         elif key == "email_like":
-    #             conditions.append("email LIKE $" + str(len(params) + 1))
-    #             params.append(value)
-    #
-    #     if conditions:
-    #         query += " AND " + " AND ".join(conditions)
 
     try:
         async with pool.acquire() as conn:
-            rows = await conn.fetch(query)
+            rows = await conn.fetch(query, *params)
 
             # Преобразуем результаты в список словарей
             users = [dict(row) for row in rows]
@@ -170,13 +171,45 @@ async def get_users_count(filters: Optional[Dict[str, Any]] = None) -> int:
     if not pool:
         return 0
 
-    query = "SELECT COUNT(*) FROM users WHERE tg_user_id IS NOT NULL"
+    if not filters:
+        filters = {}
 
-    # TODO: Добавить поддержку фильтров
+    # Строим WHERE условия
+    conditions = []
+    params = []
+    param_idx = 1
+
+    if filters.get('marathon_ref_id'):
+        conditions.append(f"marathon_ref_id = ${param_idx}")
+        params.append(filters['marathon_ref_id'])
+        param_idx += 1
+
+    if 'is_purchased' in filters and filters['is_purchased'] is not None:
+        conditions.append(f"is_purchased = ${param_idx}")
+        params.append(filters['is_purchased'])
+        param_idx += 1
+
+    if filters.get('completed_days_min') is not None:
+        conditions.append(f"completed_days_in_marathon >= ${param_idx}")
+        params.append(filters['completed_days_min'])
+        param_idx += 1
+
+    if filters.get('completed_days_max') is not None:
+        conditions.append(f"completed_days_in_marathon <= ${param_idx}")
+        params.append(filters['completed_days_max'])
+        param_idx += 1
+
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+    query = f"""
+        SELECT COUNT(DISTINCT telegram_id)
+        FROM telegram_marathon_users
+        WHERE telegram_id IS NOT NULL AND {where_clause}
+    """
 
     try:
         async with pool.acquire() as conn:
-            count = await conn.fetchval(query)
+            count = await conn.fetchval(query, *params)
             return count or 0
     except Exception as e:
         logger.error(f"❌ Ошибка подсчета пользователей: {e}")

@@ -362,10 +362,11 @@ function openTagModal(tagId = null) {
         // Новый тег - устанавливаем значения по умолчанию
         document.getElementById('modalTitle').textContent = 'Добавить тег';
         form.reset();
-        document.getElementById('modalMatchMode').value = 'equals';
-        document.getElementById('modalRequirePhoto').value = 'true';
-        document.getElementById('modalReplyOk').value = 'Зараховано! 🦋';
-        document.getElementById('modalReplyNeedPhoto').value = 'Щоб зарахувати — додай фото і повтори з хештегом.';
+        document.getElementById('modalDelay').value = '10';
+        document.getElementById('modalMatchMode').value = 'prefix';
+        document.getElementById('modalRequirePhoto').value = 'false';
+        document.getElementById('modalReplyOk').value = '';
+        document.getElementById('modalReplyNeedPhoto').value = '';
         document.getElementById('modalThreadName').value = '';
         document.getElementById('modalReplyDuplicate').value = '';
         document.getElementById('modalModerationEnabled').value = 'false';
@@ -386,8 +387,8 @@ function openTagModal(tagId = null) {
         document.getElementById('modalRequirePhoto').value = tag.require_photo !== undefined ? tag.require_photo.toString() : 'true';
         
         // Настройки сообщений
-        document.getElementById('modalReplyOk').value = tag.reply_ok || 'Зараховано! 🦋';
-        document.getElementById('modalReplyNeedPhoto').value = tag.reply_need_photo || 'Щоб зарахувати — додай фото і повтори з хештегом.';
+        document.getElementById('modalReplyOk').value = tag.reply_ok || '';
+        document.getElementById('modalReplyNeedPhoto').value = tag.reply_need_photo || '';
         
         // Настройки треда
         document.getElementById('modalThreadName').value = tag.thread_name || '';
@@ -1268,14 +1269,12 @@ async function loadBroadcastPreview() {
 
 // Отправка массовой рассылки
 async function sendBroadcast() {
-    const messageEl = document.getElementById('broadcastMessage');
-    const parseModeEl = document.getElementById('broadcastParseMode');
     const sendBtn = document.getElementById('sendBroadcastBtn');
     const resultDiv = document.getElementById('broadcastResult');
     const resultContent = document.getElementById('broadcastResultContent');
 
-    const message = messageEl.value.trim();
-    const parseMode = parseModeEl.value || null;
+    const message = getBroadcastMessage().trim();
+    const parseMode = 'HTML'; // Всегда используем HTML
 
     // Валидация
     if (!message) {
@@ -1298,10 +1297,13 @@ async function sendBroadcast() {
         sendBtn.textContent = '⏳ Отправка...';
         showNotification('Начинаем рассылку...', 'info');
 
+        const disableLinkPreview = document.getElementById('disableLinkPreview')?.checked ?? true;
+
         const response = await apiRequest('POST', '/broadcast/send', {
             message: message,
             parse_mode: parseMode,
-            filters: null
+            filters: null,
+            disable_web_page_preview: disableLinkPreview
         });
 
         if (response.success) {
@@ -1361,8 +1363,9 @@ async function sendBroadcast() {
 
 // Очистка формы рассылки
 function clearBroadcastForm() {
-    document.getElementById('broadcastMessage').value = '';
-    document.getElementById('broadcastParseMode').value = '';
+    const messageEl = document.getElementById('broadcastMessage');
+    if (messageEl) messageEl.value = '';
+
     document.getElementById('broadcastPreviewResult').style.display = 'none';
     document.getElementById('sendBroadcastBtn').disabled = true;
 
@@ -1384,7 +1387,7 @@ function clearBroadcastForm() {
 
 function showTestMessageDialog() {
     // Копируем сообщение из основной формы если оно есть
-    const mainMessage = document.getElementById('broadcastMessage').value;
+    const mainMessage = getBroadcastMessage();
     if (mainMessage) {
         document.getElementById('testMessage').value = mainMessage;
     }
@@ -1401,7 +1404,7 @@ function closeTestMessageModal() {
 async function sendTestMessage() {
     const tgUserId = document.getElementById('testTgUserId').value;
     const message = document.getElementById('testMessage').value;
-    const parseMode = document.getElementById('broadcastParseMode').value || null;
+    const parseMode = 'HTML'; // Всегда используем HTML
 
     // Валидация
     if (!tgUserId) {
@@ -1417,10 +1420,13 @@ async function sendTestMessage() {
     try {
         showNotification('Отправка тестового сообщения...', 'info');
 
+        const disableLinkPreview = document.getElementById('disableLinkPreview')?.checked ?? true;
+
         const response = await apiRequest('POST', '/broadcast/test', {
             tg_user_id: parseInt(tgUserId),
             message: message,
-            parse_mode: parseMode
+            parse_mode: parseMode,
+            disable_web_page_preview: disableLinkPreview
         });
 
         if (response.success) {
@@ -1440,7 +1446,7 @@ function sendTestToUser(tgUserId, username) {
     document.getElementById('testTgUserId').value = tgUserId;
 
     // Если есть сообщение в основной форме, используем его
-    const mainMessage = document.getElementById('broadcastMessage').value;
+    const mainMessage = getBroadcastMessage();
     if (mainMessage) {
         document.getElementById('testMessage').value = mainMessage;
     } else {
@@ -1504,18 +1510,6 @@ function collectFilters() {
     const isPurchased = document.getElementById('filterIsPurchased').value;
     if (isPurchased !== '') filters.is_purchased = isPurchased === 'true';
 
-    const hasAccess = document.getElementById('filterHasAccess').value;
-    if (hasAccess !== '') filters.has_active_access = hasAccess === 'true';
-
-    const hasStarted = document.getElementById('filterHasStarted').value;
-    if (hasStarted !== '') filters.has_started = hasStarted === 'true';
-
-    const progressMin = document.getElementById('filterProgressMin').value;
-    if (progressMin !== '') filters.progress_min = parseInt(progressMin);
-
-    const progressMax = document.getElementById('filterProgressMax').value;
-    if (progressMax !== '') filters.progress_max = parseInt(progressMax);
-
     const daysMin = document.getElementById('filterCompletedDaysMin').value;
     if (daysMin !== '') filters.completed_days_min = parseInt(daysMin);
 
@@ -1529,10 +1523,6 @@ function collectFilters() {
 function clearFilters() {
     document.getElementById('filterMarathon').value = '';
     document.getElementById('filterIsPurchased').value = '';
-    document.getElementById('filterHasAccess').value = '';
-    document.getElementById('filterHasStarted').value = '';
-    document.getElementById('filterProgressMin').value = '';
-    document.getElementById('filterProgressMax').value = '';
     document.getElementById('filterCompletedDaysMin').value = '';
     document.getElementById('filterCompletedDaysMax').value = '';
 
@@ -1670,14 +1660,12 @@ async function sendBroadcastWithFilters() {
         return;
     }
 
-    const messageEl = document.getElementById('broadcastMessage');
-    const parseModeEl = document.getElementById('broadcastParseMode');
     const sendBtn = document.getElementById('sendBroadcastBtn');
     const resultDiv = document.getElementById('broadcastResult');
     const resultContent = document.getElementById('broadcastResultContent');
 
-    const message = messageEl.value.trim();
-    const parseMode = parseModeEl.value || null;
+    const message = getBroadcastMessage().trim();
+    const parseMode = 'HTML'; // Всегда используем HTML
 
     if (!message) {
         showNotification('Введите текст сообщения', 'error');
@@ -1701,10 +1689,13 @@ async function sendBroadcastWithFilters() {
         sendBtn.textContent = '⏳ Отправка...';
         showNotification('Начинаем рассылку...', 'info');
 
+        const disableLinkPreview = document.getElementById('disableLinkPreview')?.checked ?? true;
+
         const response = await apiRequest('POST', '/broadcast/send-filtered', {
             message: message,
             parse_mode: parseMode,
-            filters: filters
+            filters: filters,
+            disable_web_page_preview: disableLinkPreview
         });
 
         if (response.success) {
@@ -1775,14 +1766,10 @@ function getFilterDescription(filters) {
     if (filters.is_purchased === true) parts.push('Купили');
     if (filters.is_purchased === false) parts.push('Не купили');
 
-    if (filters.has_active_access === true) parts.push('С доступом');
-    if (filters.has_active_access === false) parts.push('Без доступа');
-
-    if (filters.has_started === true) parts.push('Начали заниматься');
-    if (filters.has_started === false) parts.push('Не начали');
-
-    if (filters.progress_min !== undefined || filters.progress_max !== undefined) {
-        parts.push(`Прогресс: ${filters.progress_min || 0}-${filters.progress_max || 100}%`);
+    if (filters.completed_days_min !== undefined || filters.completed_days_max !== undefined) {
+        const min = filters.completed_days_min || 0;
+        const max = filters.completed_days_max !== undefined ? filters.completed_days_max : '∞';
+        parts.push(`Выполнено: ${min}-${max} дней`);
     }
 
     return parts.length > 0 ? `Фильтры: ${parts.join(', ')}` : 'Фильтры: Все пользователи';
@@ -1824,16 +1811,6 @@ function updateActiveFiltersDisplay() {
     if (filters.is_purchased === true) tags.push({ key: 'purchased', label: 'Купили' });
     if (filters.is_purchased === false) tags.push({ key: 'purchased', label: 'Не купили' });
 
-    if (filters.has_active_access === true) tags.push({ key: 'access', label: 'С доступом' });
-    if (filters.has_active_access === false) tags.push({ key: 'access', label: 'Без доступа' });
-
-    if (filters.has_started === true) tags.push({ key: 'started', label: 'Начали' });
-    if (filters.has_started === false) tags.push({ key: 'started', label: 'Не начали' });
-
-    if (filters.progress_min !== undefined || filters.progress_max !== undefined) {
-        tags.push({ key: 'progress', label: `${filters.progress_min || 0}-${filters.progress_max || 100}%` });
-    }
-
     if (filters.completed_days_min !== undefined || filters.completed_days_max !== undefined) {
         const min = filters.completed_days_min || 0;
         const max = filters.completed_days_max !== undefined ? filters.completed_days_max : '∞';
@@ -1859,16 +1836,6 @@ function removeFilter(key) {
         case 'purchased':
             document.getElementById('filterIsPurchased').value = '';
             break;
-        case 'access':
-            document.getElementById('filterHasAccess').value = '';
-            break;
-        case 'started':
-            document.getElementById('filterHasStarted').value = '';
-            break;
-        case 'progress':
-            document.getElementById('filterProgressMin').value = '';
-            document.getElementById('filterProgressMax').value = '';
-            break;
         case 'days':
             document.getElementById('filterCompletedDaysMin').value = '';
             document.getElementById('filterCompletedDaysMax').value = '';
@@ -1878,15 +1845,11 @@ function removeFilter(key) {
     loadFilteredPreview();
 }
 
-// Обновить preview сообщения в реальном времени
+// Обновить preview сообщения в реальном времени (HTML режим)
 function updateMessagePreview() {
-    const messageEl = document.getElementById('broadcastMessage');
-    const parseModeEl = document.getElementById('broadcastParseMode');
     const previewEl = document.getElementById('messagePreview');
     const charCountEl = document.getElementById('charCount');
-
-    const message = messageEl.value;
-    const parseMode = parseModeEl.value;
+    const message = getBroadcastMessage();
 
     // Обновить счетчик символов
     if (charCountEl) {
@@ -1902,36 +1865,27 @@ function updateMessagePreview() {
         return;
     }
 
-    let formattedMessage = escapeHtml(message);
+    // Парсим HTML теги для preview
+    let formattedMessage = message
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/&lt;b&gt;(.*?)&lt;\/b&gt;/gi, '<b>$1</b>')
+        .replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/gi, '<strong>$1</strong>')
+        .replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/gi, '<i>$1</i>')
+        .replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/gi, '<em>$1</em>')
+        .replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/gi, '<u>$1</u>')
+        .replace(/&lt;s&gt;(.*?)&lt;\/s&gt;/gi, '<s>$1</s>')
+        .replace(/&lt;strike&gt;(.*?)&lt;\/strike&gt;/gi, '<s>$1</s>')
+        .replace(/&lt;code&gt;(.*?)&lt;\/code&gt;/gi, '<code>$1</code>')
+        .replace(/&lt;pre&gt;(.*?)&lt;\/pre&gt;/gis, '<pre>$1</pre>')
+        // Ссылки с двойными кавычками
+        .replace(/&lt;a href="(.*?)"&gt;(.*?)&lt;\/a&gt;/gi, '<a href="$1" target="_blank">$2</a>')
+        // Ссылки с одинарными кавычками
+        .replace(/&lt;a href='(.*?)'&gt;(.*?)&lt;\/a&gt;/gi, '<a href="$1" target="_blank">$2</a>');
 
-    if (parseMode === 'HTML') {
-        // Парсим HTML теги для preview
-        formattedMessage = message
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/&lt;b&gt;(.*?)&lt;\/b&gt;/gi, '<b>$1</b>')
-            .replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/gi, '<strong>$1</strong>')
-            .replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/gi, '<i>$1</i>')
-            .replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/gi, '<em>$1</em>')
-            .replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/gi, '<u>$1</u>')
-            .replace(/&lt;s&gt;(.*?)&lt;\/s&gt;/gi, '<s>$1</s>')
-            .replace(/&lt;strike&gt;(.*?)&lt;\/strike&gt;/gi, '<s>$1</s>')
-            .replace(/&lt;code&gt;(.*?)&lt;\/code&gt;/gi, '<code>$1</code>')
-            .replace(/&lt;pre&gt;(.*?)&lt;\/pre&gt;/gis, '<pre>$1</pre>')
-            .replace(/&lt;a href=&quot;(.*?)&quot;&gt;(.*?)&lt;\/a&gt;/gi, '<a href="$1" target="_blank">$2</a>');
-    } else if (parseMode === 'Markdown') {
-        // Парсим Markdown для preview
-        formattedMessage = escapeHtml(message)
-            .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
-            .replace(/\*(.+?)\*/g, '<b>$1</b>')
-            .replace(/__(.+?)__/g, '<i>$1</i>')
-            .replace(/_(.+?)_/g, '<i>$1</i>')
-            .replace(/~~(.+?)~~/g, '<s>$1</s>')
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
-            .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
-            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-    }
+    // Сохраняем переносы строк
+    formattedMessage = formattedMessage.replace(/\n/g, '<br>');
 
     previewEl.innerHTML = formattedMessage;
 }
@@ -1959,6 +1913,227 @@ document.addEventListener('keydown', function(event) {
         }
         if (filterPopup && filterPopup.style.display === 'block') {
             closeFilterPopup();
+        }
+    }
+});
+
+// ========================================
+// HTML Editor Functions
+// ========================================
+
+// Получить текст из редактора
+function getBroadcastMessage() {
+    const textareaEl = document.getElementById('broadcastMessage');
+    return textareaEl ? textareaEl.value : '';
+}
+
+// Установить текст в редактор
+function setBroadcastMessage(text) {
+    const textareaEl = document.getElementById('broadcastMessage');
+    if (textareaEl) {
+        textareaEl.value = text;
+    }
+    updateMessagePreview();
+}
+
+// Вставить HTML тег вокруг выделенного текста
+function insertTag(tagName) {
+    const textarea = document.getElementById('broadcastMessage');
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    const beforeText = textarea.value.substring(0, start);
+    const afterText = textarea.value.substring(end);
+
+    const openTag = `<${tagName}>`;
+    const closeTag = `</${tagName}>`;
+
+    if (selectedText) {
+        // Оборачиваем выделенный текст
+        textarea.value = beforeText + openTag + selectedText + closeTag + afterText;
+        textarea.selectionStart = start + openTag.length;
+        textarea.selectionEnd = start + openTag.length + selectedText.length;
+    } else {
+        // Вставляем пустые теги и ставим курсор между ними
+        textarea.value = beforeText + openTag + closeTag + afterText;
+        textarea.selectionStart = textarea.selectionEnd = start + openTag.length;
+    }
+
+    textarea.focus();
+    updateMessagePreview();
+}
+
+// Вставить ссылку
+function insertLink() {
+    const textarea = document.getElementById('broadcastMessage');
+    if (!textarea) return;
+
+    const url = prompt('Введите URL:', 'https://');
+    if (!url) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end) || 'текст ссылки';
+    const beforeText = textarea.value.substring(0, start);
+    const afterText = textarea.value.substring(end);
+
+    const linkHtml = `<a href="${url}">${selectedText}</a>`;
+
+    textarea.value = beforeText + linkHtml + afterText;
+    textarea.selectionStart = textarea.selectionEnd = start + linkHtml.length;
+
+    textarea.focus();
+    updateMessagePreview();
+}
+
+// Вставить emoji
+function insertEmoji(emoji) {
+    const textarea = document.getElementById('broadcastMessage');
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const beforeText = textarea.value.substring(0, start);
+    const afterText = textarea.value.substring(start);
+
+    textarea.value = beforeText + emoji + afterText;
+    textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+
+    textarea.focus();
+    updateMessagePreview();
+}
+
+// Обработка горячих клавиш
+document.addEventListener('keydown', function(e) {
+    const textarea = document.getElementById('broadcastMessage');
+    if (!textarea || document.activeElement !== textarea) return;
+
+    // Ctrl+B - жирный
+    if (e.ctrlKey && e.key === 'b') {
+        e.preventDefault();
+        insertTag('b');
+    }
+    // Ctrl+I - курсив
+    if (e.ctrlKey && e.key === 'i') {
+        e.preventDefault();
+        insertTag('i');
+    }
+    // Ctrl+U - подчеркнутый
+    if (e.ctrlKey && e.key === 'u') {
+        e.preventDefault();
+        insertTag('u');
+    }
+    // Ctrl+K - ссылка
+    if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault();
+        insertLink();
+    }
+});
+
+// ========================================
+// Emoji Picker
+// ========================================
+
+const emojiData = {
+    smileys: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '☺️', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐', '😕', '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺', '😦', '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖'],
+    gestures: ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👩', '🧓', '👴', '👵', '🙍', '🙎', '🙅', '🙆', '💁', '🙋', '🧏', '🙇', '🤦', '🤷'],
+    hearts: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '♥️', '🫶', '💌', '💋', '😻', '😽', '🥰', '😍', '😘', '😚', '💑', '👩‍❤️‍👨', '👨‍❤️‍👨', '👩‍❤️‍👩', '💏', '👩‍❤️‍💋‍👨', '👨‍❤️‍💋‍👨', '👩‍❤️‍💋‍👩'],
+    animals: ['🐱', '🐶', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🦟', '🦗', '🕷️', '🕸️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐈', '🐓', '🦃', '🦤', '🦚', '🦜', '🦢', '🦩', '🐇', '🦝', '🦨', '🦡', '🦫', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔'],
+    food: ['🍕', '🍔', '🍟', '🌭', '🍿', '🧂', '🥓', '🥚', '🍳', '🧇', '🥞', '🧈', '🍞', '🥐', '🥖', '🥨', '🧀', '🥗', '🥙', '🥪', '🌮', '🌯', '🫔', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛', '🍼', '☕', '🍵', '🧃', '🥤', '🧋', '🍶', '🍺', '🍻', '🥂', '🍷', '🥃', '🍸', '🍹', '🧉', '🍾', '🧊', '🥄', '🍴', '🍽️', '🥣', '🥡', '🥢', '🧂', '🍎', '🍏', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠'],
+    activities: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '🤺', '⛹️', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚵', '🚴', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎫', '🎟️', '🎪', '🤹', '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🪘', '🎷', '🎺', '🪗', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩'],
+    travel: ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🦯', '🦽', '🦼', '🛴', '🚲', '🛵', '🏍️', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢', '⚓', '🪝', '⛽', '🚧', '🚦', '🚥', '🚏', '🗺️', '🗿', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛱️', '🏖️', '🏝️', '🏜️', '🌋', '⛰️', '🏔️', '🗻', '🏕️', '⛺', '🛖', '🏠', '🏡', '🏘️', '🏚️', '🏗️', '🏭', '🏢', '🏬', '🏣', '🏤', '🏥', '🏦', '🏨', '🏪', '🏫', '🏩', '💒', '🏛️', '⛪', '🕌', '🕍', '🛕', '🕋', '⛩️'],
+    objects: ['💡', '🔦', '🏮', '🪔', '📱', '📲', '💻', '🖥️', '🖨️', '⌨️', '🖱️', '🖲️', '💽', '💾', '💿', '📀', '🧮', '🎥', '🎞️', '📽️', '🎬', '📺', '📷', '📸', '📹', '📼', '🔍', '🔎', '🕯️', '💵', '💴', '💶', '💷', '💰', '💳', '💎', '⚖️', '🪜', '🧰', '🪛', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️', '🛡️', '🚬', '⚰️', '🪦', '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '💊', '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺', '🧻', '🚽', '🚰', '🚿', '🛁', '🛀', '🧼', '🪥', '🪒', '🧽', '🪣', '🧴', '🛎️', '🔑', '🗝️', '🚪', '🪑', '🛋️', '🛏️', '🛌', '🧸', '🪆', '🖼️', '🪞', '🪟', '🛍️', '🛒', '🎁', '🎈', '🎏', '🎀', '🪄', '🎊', '🎉', '🎎', '🏮', '🎐', '🧧', '✉️', '📩', '📨', '📧', '💌', '📥', '📤', '📦', '🏷️', '🪧', '📪', '📫', '📬', '📭', '📮', '📯', '📜', '📃', '📄', '📑', '🧾', '📊', '📈', '📉', '🗒️', '🗓️', '📆', '📅', '🗑️', '📇', '🗃️', '🗳️', '🗄️', '📋', '📁', '📂', '🗂️', '🗞️', '📰', '📓', '📔', '📒', '📕', '📗', '📘', '📙', '📚', '📖', '🔖', '🧷', '🔗', '📎', '🖇️', '📐', '📏', '🧮', '📌', '📍', '✂️', '🖊️', '🖋️', '✒️', '🖌️', '🖍️', '📝', '✏️', '🔍', '🔎', '🔏', '🔐', '🔒', '🔓'],
+    symbols: ['✅', '❌', '❓', '❗', '❕', '❔', '⭕', '🚫', '💯', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '⛎', '🔀', '🔁', '🔂', '▶️', '⏩', '⏭️', '⏯️', '◀️', '⏪', '⏮️', '🔼', '⏫', '🔽', '⏬', '⏸️', '⏹️', '⏺️', '⏏️', '🎦', '🔅', '🔆', '📶', '📳', '📴', '♀️', '♂️', '⚧️', '✖️', '➕', '➖', '➗', '♾️', '‼️', '⁉️', '〰️', '💲', '⚕️', '♻️', '⚜️', '🔱', '📛', '🔰', '⭐', '🌟', '✨', '💫', '🌠', '🎇', '🎆', '🌈', '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', '🌫️', '🌊', '💧', '💦', '☔', '🔥', '💥', '⚡', '✴️', '🆕', '🆙', '🆒', '🆓', '🆗', '🆖', '🆚', '🈁', '🈂️', '🈷️', '🈶', '🈯', '🉐', '🈹', '🈚', '🈲', '🉑', '🈸', '🈴', '🈳', '㊗️', '㊙️', '🈺', '🈵', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '🟤', '⚫', '⚪', '🔘'],
+    flags: ['🇺🇦', '🇺🇸', '🇬🇧', '🇩🇪', '🇫🇷', '🇮🇹', '🇪🇸', '🇵🇱', '🇨🇦', '🇦🇺', '🇯🇵', '🇰🇷', '🇨🇳', '🇮🇳', '🇧🇷', '🇲🇽', '🇦🇷', '🇨🇱', '🇨🇴', '🇵🇪', '🇻🇪', '🇪🇨', '🇧🇴', '🇵🇾', '🇺🇾', '🇵🇹', '🇳🇱', '🇧🇪', '🇨🇭', '🇦🇹', '🇸🇪', '🇳🇴', '🇩🇰', '🇫🇮', '🇮🇪', '🇮🇸', '🇬🇷', '🇹🇷', '🇷🇺', '🇮🇱', '🇪🇬', '🇿🇦', '🇳🇬', '🇰🇪', '🇹🇭', '🇻🇳', '🇮🇩', '🇵🇭', '🇲🇾', '🇸🇬', '🇳🇿', '🏳️', '🏴', '🏁', '🚩', '🎌', '🏳️‍🌈', '🏳️‍⚧️', '🏴‍☠️']
+};
+
+let currentEmojiCategory = 'smileys';
+let emojiTargetField = null; // Целевое поле для вставки emoji
+
+function openEmojiPicker() {
+    emojiTargetField = null; // Сбрасываем, будет использоваться broadcastMessage
+    document.getElementById('emojiPickerModal').style.display = 'block';
+    document.getElementById('emojiSearch').value = '';
+    showEmojiCategory('smileys');
+}
+
+function openEmojiPickerForField(fieldId) {
+    emojiTargetField = fieldId; // Запоминаем целевое поле
+    document.getElementById('emojiPickerModal').style.display = 'block';
+    document.getElementById('emojiSearch').value = '';
+    showEmojiCategory('smileys');
+}
+
+function closeEmojiPicker() {
+    document.getElementById('emojiPickerModal').style.display = 'none';
+}
+
+function showEmojiCategory(category) {
+    currentEmojiCategory = category;
+
+    // Обновляем активную кнопку категории
+    document.querySelectorAll('.emoji-cat-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.cat === category);
+    });
+
+    renderEmojis(emojiData[category]);
+}
+
+function renderEmojis(emojis) {
+    const grid = document.getElementById('emojiGrid');
+    grid.innerHTML = emojis.map(emoji =>
+        `<button class="emoji-item" onclick="selectEmoji('${emoji}')" title="${emoji}">${emoji}</button>`
+    ).join('');
+}
+
+function selectEmoji(emoji) {
+    if (emojiTargetField) {
+        // Вставляем в указанное поле (например, modalEmoji)
+        const field = document.getElementById(emojiTargetField);
+        if (field) {
+            field.value = emoji;
+            field.focus();
+        }
+    } else {
+        // Стандартное поведение - вставляем в broadcastMessage
+        insertEmoji(emoji);
+    }
+    closeEmojiPicker();
+}
+
+function filterEmojis() {
+    const searchTerm = document.getElementById('emojiSearch').value.toLowerCase();
+
+    if (!searchTerm) {
+        showEmojiCategory(currentEmojiCategory);
+        return;
+    }
+
+    // Поиск по всем категориям
+    const allEmojis = Object.values(emojiData).flat();
+    const filtered = allEmojis.filter(emoji => emoji.includes(searchTerm));
+
+    // Убираем активную категорию при поиске
+    document.querySelectorAll('.emoji-cat-btn').forEach(btn => btn.classList.remove('active'));
+
+    renderEmojis(filtered.length > 0 ? filtered : allEmojis.slice(0, 50));
+}
+
+// Закрытие emoji picker по клику вне окна
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('emojiPickerModal');
+    if (event.target === modal) {
+        closeEmojiPicker();
+    }
+});
+
+// Закрытие по Escape
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const emojiModal = document.getElementById('emojiPickerModal');
+        if (emojiModal && emojiModal.style.display === 'block') {
+            closeEmojiPicker();
         }
     }
 });
