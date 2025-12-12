@@ -1171,3 +1171,207 @@ function closeMediaModal() {
         modal.remove();
     }
 }
+
+// === МАССОВАЯ РАССЫЛКА ===
+
+// Проверка подключения к Supabase
+async function checkSupabaseConnection() {
+    const statusIndicator = document.getElementById('supabaseStatus');
+    const helpText = document.getElementById('supabaseHelp');
+
+    // Показываем загрузку
+    statusIndicator.innerHTML = '<span class="status-dot status-unknown"></span><span class="status-text">Проверка подключения...</span>';
+    helpText.style.display = 'none';
+
+    try {
+        const response = await apiRequest('POST', '/broadcast/preview', {});
+
+        if (response.success) {
+            // Supabase настроен и работает
+            statusIndicator.innerHTML = '<span class="status-dot status-connected"></span><span class="status-text">Подключено к Supabase ✓</span>';
+            showNotification('Supabase подключен успешно', 'success');
+        } else {
+            // Ошибка подключения
+            statusIndicator.innerHTML = '<span class="status-dot status-error"></span><span class="status-text">Ошибка: ' + response.message + '</span>';
+            helpText.style.display = 'block';
+            showNotification('Ошибка подключения к Supabase', 'error');
+        }
+    } catch (error) {
+        statusIndicator.innerHTML = '<span class="status-dot status-error"></span><span class="status-text">Ошибка подключения</span>';
+        helpText.style.display = 'block';
+        showNotification('Не удалось проверить подключение', 'error');
+    }
+}
+
+// Загрузка предпросмотра получателей
+async function loadBroadcastPreview() {
+    const previewResult = document.getElementById('broadcastPreviewResult');
+    const userCountEl = document.getElementById('previewUserCount');
+    const usersListEl = document.getElementById('previewUsersList');
+    const sendBtn = document.getElementById('sendBroadcastBtn');
+
+    try {
+        showNotification('Загрузка списка получателей...', 'info');
+
+        const response = await apiRequest('POST', '/broadcast/preview', {});
+
+        if (response.success) {
+            const users = response.users || [];
+            const count = response.count || 0;
+
+            userCountEl.textContent = count;
+
+            if (count === 0) {
+                usersListEl.innerHTML = '<div class="alert-warning">Пользователи с привязанным Telegram не найдены</div>';
+                sendBtn.disabled = true;
+            } else {
+                // Показываем список пользователей
+                let html = '<table class="users-table"><thead><tr><th>Telegram ID</th><th>Username</th><th>Email</th><th>Имя</th></tr></thead><tbody>';
+
+                users.slice(0, 50).forEach(user => {  // Показываем максимум 50
+                    html += `<tr>
+                        <td><code>${user.tg_user_id}</code></td>
+                        <td>${user.username || '-'}</td>
+                        <td>${user.email || '-'}</td>
+                        <td>${user.full_name || '-'}</td>
+                    </tr>`;
+                });
+
+                html += '</tbody></table>';
+
+                if (users.length > 50) {
+                    html += `<p class="text-muted">Показано 50 из ${users.length} пользователей</p>`;
+                }
+
+                usersListEl.innerHTML = html;
+                sendBtn.disabled = false;
+            }
+
+            previewResult.style.display = 'block';
+            showNotification(`Найдено ${count} получателей`, 'success');
+        } else {
+            showNotification('Ошибка: ' + response.message, 'error');
+            previewResult.style.display = 'none';
+            sendBtn.disabled = true;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки предпросмотра:', error);
+        showNotification('Ошибка загрузки предпросмотра', 'error');
+        previewResult.style.display = 'none';
+        sendBtn.disabled = true;
+    }
+}
+
+// Отправка массовой рассылки
+async function sendBroadcast() {
+    const messageEl = document.getElementById('broadcastMessage');
+    const parseModeEl = document.getElementById('broadcastParseMode');
+    const sendBtn = document.getElementById('sendBroadcastBtn');
+    const resultDiv = document.getElementById('broadcastResult');
+    const resultContent = document.getElementById('broadcastResultContent');
+
+    const message = messageEl.value.trim();
+    const parseMode = parseModeEl.value || null;
+
+    // Валидация
+    if (!message) {
+        showNotification('Введите текст сообщения', 'error');
+        return;
+    }
+
+    if (message.length > 4096) {
+        showNotification('Сообщение слишком длинное (максимум 4096 символов)', 'error');
+        return;
+    }
+
+    // Подтверждение
+    if (!confirm(`Вы уверены что хотите отправить рассылку?\n\nСообщение будет отправлено всем пользователям с привязанным Telegram.`)) {
+        return;
+    }
+
+    try {
+        sendBtn.disabled = true;
+        sendBtn.textContent = '⏳ Отправка...';
+        showNotification('Начинаем рассылку...', 'info');
+
+        const response = await apiRequest('POST', '/broadcast/send', {
+            message: message,
+            parse_mode: parseMode,
+            filters: null
+        });
+
+        if (response.success) {
+            const data = response.data || {};
+            const total = data.total || 0;
+            const success = data.success || 0;
+            const failed = data.failed || 0;
+            const failedUsers = data.failed_users || [];
+
+            // Показываем результат
+            let html = `
+                <div class="alert-success">
+                    <h4>✅ Рассылка завершена!</h4>
+                    <p>${response.message}</p>
+                </div>
+                <div class="result-stats">
+                    <div class="stat-item">
+                        <strong>Всего:</strong> ${total}
+                    </div>
+                    <div class="stat-item">
+                        <strong>Успешно:</strong> <span class="text-success">${success}</span>
+                    </div>
+                    <div class="stat-item">
+                        <strong>Ошибок:</strong> <span class="text-danger">${failed}</span>
+                    </div>
+                </div>
+            `;
+
+            if (failed > 0 && failedUsers.length > 0) {
+                html += '<h4>Ошибки отправки:</h4><div class="failed-users-list">';
+                failedUsers.forEach(user => {
+                    html += `<div class="failed-user">
+                        <strong>${user.username || user.tg_user_id}</strong>: ${user.error}
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            resultContent.innerHTML = html;
+            resultDiv.style.display = 'block';
+
+            showNotification('Рассылка завершена успешно', 'success');
+
+            // Очищаем форму
+            clearBroadcastForm();
+        } else {
+            showNotification('Ошибка: ' + response.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка отправки рассылки:', error);
+        showNotification('Ошибка отправки рассылки', 'error');
+    } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '📤 Отправить рассылку';
+    }
+}
+
+// Очистка формы рассылки
+function clearBroadcastForm() {
+    document.getElementById('broadcastMessage').value = '';
+    document.getElementById('broadcastParseMode').value = '';
+    document.getElementById('broadcastPreviewResult').style.display = 'none';
+    document.getElementById('sendBroadcastBtn').disabled = true;
+}
+
+// Автоматическая проверка подключения при открытии вкладки
+const originalShowTab = showTab;
+showTab = function(tabName) {
+    originalShowTab(tabName);
+
+    // При открытии вкладки рассылки проверяем подключение
+    if (tabName === 'broadcast') {
+        setTimeout(() => {
+            checkSupabaseConnection();
+        }, 100);
+    }
+};

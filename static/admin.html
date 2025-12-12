@@ -31,6 +31,7 @@
             <nav class="tabs-nav">
                 <button class="tab-btn active" onclick="showTab('tags')">🏷️ Теги</button>
                 <button class="tab-btn" onclick="showTab('moderation')">🔍 Модерация</button>
+                <button class="tab-btn" onclick="showTab('broadcast')">📢 Рассылка</button>
                 <button class="tab-btn" onclick="showTab('stats')">📊 Статистика</button>
                 <button class="tab-btn" onclick="showTab('logs')">📋 Логи</button>
                 <button class="tab-btn" onclick="showTab('api')">🔌 API</button>
@@ -82,6 +83,115 @@
                     <div id="moderationItems" class="moderation-items">
                         <!-- Элементы модерации будут загружены динамически -->
                     </div>
+                </div>
+            </section>
+
+            <!-- Массовая рассылка -->
+            <section id="broadcastTab" class="tab-content card" style="display: none;">
+                <h2>📢 Массовая рассылка</h2>
+
+                <div class="broadcast-warning alert-warning">
+                    <strong>⚠️ Внимание!</strong> Сообщение будет отправлено всем пользователям с привязанным Telegram.
+                    Обязательно проверьте предпросмотр перед отправкой!
+                </div>
+
+                <!-- Настройка подключения -->
+                <div class="broadcast-connection card-inner">
+                    <h3>🔌 Статус подключения к Supabase</h3>
+                    <div class="connection-status">
+                        <div id="supabaseStatus" class="status-indicator">
+                            <span class="status-dot status-unknown"></span>
+                            <span class="status-text">Проверка подключения...</span>
+                        </div>
+                        <button onclick="checkSupabaseConnection()" class="btn btn-secondary btn-sm">🔄 Проверить</button>
+                    </div>
+                    <div id="supabaseHelp" class="help-text" style="display: none;">
+                        <p>Для настройки Supabase добавьте в .env:</p>
+                        <pre>DB_HOST=db.your-project.supabase.co
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=postgres</pre>
+                        <p>После изменений перезапустите админ-панель.</p>
+                    </div>
+                </div>
+
+                <!-- Форма создания рассылки -->
+                <div class="broadcast-form card-inner">
+                    <h3>✉️ Создание рассылки</h3>
+
+                    <div class="form-group">
+                        <label for="broadcastMessage">Текст сообщения:</label>
+                        <textarea
+                            id="broadcastMessage"
+                            placeholder="Введите текст сообщения для рассылки..."
+                            rows="6"
+                            class="form-control"
+                        ></textarea>
+                        <small class="form-hint">Максимум 4096 символов</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="broadcastParseMode">Форматирование:</label>
+                        <select id="broadcastParseMode" class="form-control">
+                            <option value="">Без форматирования</option>
+                            <option value="HTML">HTML</option>
+                            <option value="Markdown">Markdown</option>
+                        </select>
+                        <small class="form-hint">
+                            HTML: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;<br>
+                            Markdown: **жирный**, _курсив_
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Фильтры пользователей:</label>
+                        <div class="alert-info">
+                            <strong>ℹ️ Информация:</strong> Сейчас рассылка отправляется всем пользователям с привязанным Telegram.
+                            Фильтры будут добавлены в следующей версии (см. TODO_BROADCAST_DATA.md).
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Предпросмотр -->
+                <div class="broadcast-preview card-inner">
+                    <h3>👥 Предпросмотр получателей</h3>
+                    <button onclick="loadBroadcastPreview()" class="btn btn-primary">🔍 Загрузить предпросмотр</button>
+
+                    <div id="broadcastPreviewResult" style="display: none;">
+                        <div class="preview-stats">
+                            <div class="stat-card">
+                                <div class="stat-number" id="previewUserCount">0</div>
+                                <div class="stat-label">Получателей</div>
+                            </div>
+                        </div>
+
+                        <div class="preview-users-list">
+                            <h4>Список получателей:</h4>
+                            <div id="previewUsersList" class="users-list">
+                                <!-- Список пользователей -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Кнопка отправки -->
+                <div class="broadcast-actions">
+                    <button
+                        onclick="sendBroadcast()"
+                        class="btn btn-success btn-lg"
+                        id="sendBroadcastBtn"
+                        disabled
+                    >
+                        📤 Отправить рассылку
+                    </button>
+                    <button onclick="clearBroadcastForm()" class="btn btn-secondary">🗑️ Очистить</button>
+                </div>
+
+                <!-- Результат отправки -->
+                <div id="broadcastResult" style="display: none;" class="broadcast-result card-inner">
+                    <h3>📊 Результат рассылки</h3>
+                    <div id="broadcastResultContent"></div>
                 </div>
             </section>
 

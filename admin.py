@@ -10,6 +10,7 @@ import httpx
 import aiohttp
 from database import db
 from logger_config import setup_logging, log_bot_event
+from supabase_client import SupabasePool, query_users_for_broadcast
 from fastapi import FastAPI, Request, Form, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -40,6 +41,9 @@ if not BOT_TOKEN:
 # Настраиваем красивое логирование
 setup_logging("ADMIN PANEL", "INFO")
 logger = logging.getLogger('ADMIN')
+
+# ---- Функции для работы с Supabase через asyncpg ----
+# Старая функция удалена, теперь используем supabase_client.query_users_for_broadcast()
 
 # ---- модели ----
 class TagConfig(BaseModel):
@@ -543,6 +547,18 @@ class ReactionRequest(BaseModel):
     message_id: int
     emoji: str
 
+# ---- Модели для массовой рассылки ----
+class BroadcastRequest(BaseModel):
+    message: str  # Текст сообщения
+    filters: Optional[Dict[str, Any]] = None  # Фильтры пользователей (TODO: добавить поддержку)
+    parse_mode: Optional[str] = None  # HTML, Markdown или None
+
+class UserFilterResponse(BaseModel):
+    success: bool
+    users: List[Dict[str, Any]] = []
+    count: int = 0
+    message: str = ""
+
 @app.post("/api/reactions/set")
 async def set_reaction_direct(request: ReactionRequest, _: bool = Depends(require_api_admin)):
     """Прямая постановка реакции к сообщению"""
@@ -609,7 +625,151 @@ def clear_reaction_queue(_: bool = Depends(require_api_admin)):
     except Exception as e:
         return ApiResponse(success=False, message=str(e))
 
-# Редирект с корня на новую админку  
+# ---- API для массовой рассылки ----
+
+@app.post("/api/broadcast/preview")
+async def preview_broadcast_users(request: Request, _: bool = Depends(require_api_admin)):
+    """Получить список пользователей которые получат сообщение (предпросмотр)"""
+    try:
+        # Проверяем доступность Supabase
+        if not SupabasePool.is_available():
+            return UserFilterResponse(
+                success=False,
+                message="Supabase не настроен. Проверьте переменные окружения DB_HOST, DB_PASSWORD и т.д.",
+                users=[],
+                count=0
+            )
+
+        data = await request.json()
+        filters = data.get("filters", None)  # TODO: Реализовать фильтры
+
+        # Получаем пользователей через asyncpg
+        users = await query_users_for_broadcast(filters=filters)
+
+        if not users:
+            return UserFilterResponse(
+                success=True,
+                users=[],
+                count=0,
+                message="Пользователи с привязанным Telegram не найдены"
+            )
+
+        # Преобразуем в нужный формат
+        telegram_users = []
+        for user in users:
+            telegram_users.append({
+                "tg_user_id": str(user.get("tg_user_id", "")),
+                "username": user.get("username", ""),
+                "email": user.get("email", ""),
+                "full_name": user.get("full_name", "")
+            })
+
+        return UserFilterResponse(
+            success=True,
+            users=telegram_users,
+            count=len(telegram_users),
+            message=f"Найдено {len(telegram_users)} пользователей с привязанным Telegram"
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка предпросмотра рассылки: {e}")
+        return UserFilterResponse(
+            success=False,
+            message=str(e),
+            users=[],
+            count=0
+        )
+
+@app.post("/api/broadcast/send")
+async def send_broadcast(request: BroadcastRequest, _: bool = Depends(require_api_admin)):
+    """Отправить массовое сообщение пользователям"""
+    try:
+        if not BOT_TOKEN:
+            return ApiResponse(success=False, message="BOT_TOKEN не настроен")
+
+        # Проверяем доступность Supabase
+        if not SupabasePool.is_available():
+            return ApiResponse(
+                success=False,
+                message="Supabase не настроен. Проверьте переменные окружения DB_HOST, DB_PASSWORD и т.д."
+            )
+
+        # Получаем список пользователей через asyncpg
+        users = await query_users_for_broadcast(filters=request.filters)
+
+        if not users:
+            return ApiResponse(
+                success=False,
+                message="Не найдено пользователей с привязанным Telegram"
+            )
+
+        logger.info(f"📤 Начинаем массовую рассылку для {len(users)} пользователей")
+
+        # Отправляем сообщения
+        success_count = 0
+        failed_count = 0
+        failed_users = []
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            for user in users:
+                tg_user_id = user.get("tg_user_id")
+
+                try:
+                    # Небольшая задержка между сообщениями для избежания rate limiting
+                    await asyncio.sleep(0.05)
+
+                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                    payload = {
+                        "chat_id": tg_user_id,
+                        "text": request.message
+                    }
+
+                    if request.parse_mode:
+                        payload["parse_mode"] = request.parse_mode
+
+                    response = await client.post(url, json=payload)
+                    result_data = response.json()
+
+                    if result_data.get("ok"):
+                        success_count += 1
+                        logger.debug(f"✅ Сообщение отправлено пользователю {tg_user_id}")
+                    else:
+                        failed_count += 1
+                        error_desc = result_data.get("description", "Unknown error")
+                        logger.warning(f"❌ Не удалось отправить пользователю {tg_user_id}: {error_desc}")
+                        failed_users.append({
+                            "tg_user_id": tg_user_id,
+                            "username": user.get("username", ""),
+                            "error": error_desc
+                        })
+
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(f"❌ Ошибка отправки пользователю {tg_user_id}: {e}")
+                    failed_users.append({
+                        "tg_user_id": tg_user_id,
+                        "username": user.get("username", ""),
+                        "error": str(e)
+                    })
+
+        logger.info(f"📊 Массовая рассылка завершена: успешно={success_count}, ошибок={failed_count}")
+
+        return ApiResponse(
+            success=True,
+            message=f"Рассылка завершена: отправлено {success_count}, ошибок {failed_count}",
+            data={
+                "total": len(users),
+                "success": success_count,
+                "failed": failed_count,
+                "failed_users": failed_users
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка массовой рассылки: {e}")
+        return ApiResponse(success=False, message=str(e))
+
+# Редирект с корня на новую админку
 @app.get("/")
 def root_redirect():
     return RedirectResponse(url="/static/admin.html")
@@ -620,6 +780,30 @@ def admin_redirect():
 
 # Статические файлы (должно быть в конце)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# ---- Startup/Shutdown Events ----
+@app.on_event("startup")
+async def startup_event():
+    """Инициализация при старте приложения."""
+    logger.info("🚀 Запуск админ-панели...")
+
+    # Инициализируем пул подключений к Supabase
+    try:
+        await SupabasePool.initialize()
+    except Exception as e:
+        logger.warning(f"⚠️ Не удалось инициализировать Supabase: {e}")
+        logger.warning("⚠️ Функция массовой рассылки будет недоступна")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Очистка при остановке приложения."""
+    logger.info("🛑 Остановка админ-панели...")
+
+    # Закрываем пул подключений к Supabase
+    try:
+        await SupabasePool.close()
+    except Exception as e:
+        logger.error(f"❌ Ошибка при закрытии пула Supabase: {e}")
 
 if __name__ == "__main__":
     import uvicorn
