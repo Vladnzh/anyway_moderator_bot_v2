@@ -1177,28 +1177,24 @@ function closeMediaModal() {
 // Проверка подключения к Supabase
 async function checkSupabaseConnection() {
     const statusIndicator = document.getElementById('supabaseStatus');
-    const helpText = document.getElementById('supabaseHelp');
 
     // Показываем загрузку
-    statusIndicator.innerHTML = '<span class="status-dot status-unknown"></span><span class="status-text">Проверка подключения...</span>';
-    helpText.style.display = 'none';
+    statusIndicator.innerHTML = '<span class="status-dot status-unknown"></span><span class="status-text">Проверка...</span>';
 
     try {
         const response = await apiRequest('POST', '/broadcast/preview', {});
 
         if (response.success) {
             // Supabase настроен и работает
-            statusIndicator.innerHTML = '<span class="status-dot status-connected"></span><span class="status-text">Подключено к Supabase ✓</span>';
+            statusIndicator.innerHTML = '<span class="status-dot status-connected"></span><span class="status-text">Подключено</span>';
             showNotification('Supabase подключен успешно', 'success');
         } else {
             // Ошибка подключения
-            statusIndicator.innerHTML = '<span class="status-dot status-error"></span><span class="status-text">Ошибка: ' + response.message + '</span>';
-            helpText.style.display = 'block';
-            showNotification('Ошибка подключения к Supabase', 'error');
+            statusIndicator.innerHTML = '<span class="status-dot status-error"></span><span class="status-text">Ошибка</span>';
+            showNotification('Ошибка подключения к Supabase: ' + response.message, 'error');
         }
     } catch (error) {
-        statusIndicator.innerHTML = '<span class="status-dot status-error"></span><span class="status-text">Ошибка подключения</span>';
-        helpText.style.display = 'block';
+        statusIndicator.innerHTML = '<span class="status-dot status-error"></span><span class="status-text">Ошибка</span>';
         showNotification('Не удалось проверить подключение', 'error');
     }
 }
@@ -1369,6 +1365,19 @@ function clearBroadcastForm() {
     document.getElementById('broadcastParseMode').value = '';
     document.getElementById('broadcastPreviewResult').style.display = 'none';
     document.getElementById('sendBroadcastBtn').disabled = true;
+
+    // Сбросить preview сообщения
+    const previewEl = document.getElementById('messagePreview');
+    if (previewEl) {
+        previewEl.innerHTML = '<span class="tg-placeholder">Введите текст сообщения...</span>';
+    }
+
+    // Сбросить счетчик символов
+    const charCountEl = document.getElementById('charCount');
+    if (charCountEl) {
+        charCountEl.textContent = '0';
+        charCountEl.style.color = '#94a3b8';
+    }
 }
 
 // === ФУНКЦИИ ДЛЯ ТЕСТОВОЙ РАССЫЛКИ ===
@@ -1530,7 +1539,11 @@ function clearFilters() {
     // Скрываем предпросмотр
     document.getElementById('broadcastPreviewResult').style.display = 'none';
     document.getElementById('sendBroadcastBtn').disabled = true;
+    document.getElementById('previewUserCount').textContent = '—';
     lastPreviewUsers = [];
+
+    // Обновляем отображение активных фильтров
+    updateActiveFiltersDisplay();
 
     showNotification('Фильтры сброшены', 'success');
 }
@@ -1541,6 +1554,8 @@ async function loadFilteredPreview() {
     const userCountEl = document.getElementById('previewUserCount');
     const usersListEl = document.getElementById('previewUsersList');
     const sendBtn = document.getElementById('sendBroadcastBtn');
+    const showingCountEl = document.getElementById('audienceShowingCount');
+    const searchInput = document.getElementById('audienceSearchInput');
 
     const filters = collectFilters();
 
@@ -1556,43 +1571,15 @@ async function loadFilteredPreview() {
             lastPreviewUsers = users; // Сохраняем для отправки
             userCountEl.textContent = count;
 
+            // Сбрасываем поиск
+            if (searchInput) searchInput.value = '';
+
             if (count === 0) {
-                usersListEl.innerHTML = '<div class="alert-warning">Пользователи не найдены по заданным фильтрам</div>';
+                usersListEl.innerHTML = '<div class="empty-state" style="padding: 20px; text-align: center; color: #64748b;">Пользователи не найдены</div>';
                 sendBtn.disabled = true;
+                if (showingCountEl) showingCountEl.textContent = '';
             } else {
-                // Показываем расширенный список пользователей
-                let html = '<table class="users-table"><thead><tr><th>Telegram ID</th><th>Username</th><th>Имя</th><th>Марафон</th><th>Статус</th><th>Прогресс</th><th>Действия</th></tr></thead><tbody>';
-
-                users.slice(0, 50).forEach(user => {
-                    const statusBadges = [];
-                    if (user.is_purchased) statusBadges.push('<span class="badge badge-success">Купил</span>');
-                    if (user.has_active_access) statusBadges.push('<span class="badge badge-info">Доступ</span>');
-
-                    html += `<tr>
-                        <td><code>${user.tg_user_id}</code></td>
-                        <td>${escapeHtml(user.username || '-')}</td>
-                        <td>${escapeHtml(user.full_name || '-')}</td>
-                        <td>${escapeHtml(user.marathon_title || '-')}</td>
-                        <td>${statusBadges.join(' ') || '-'}</td>
-                        <td>${user.progress_percent || 0}% (${user.completed_days || 0} дн.)</td>
-                        <td>
-                            <button
-                                class="btn btn-small btn-secondary"
-                                onclick="sendTestToUser('${user.tg_user_id}', '${escapeHtml(user.username || '')}')"
-                                title="Отправить тестовое сообщение">
-                                📨
-                            </button>
-                        </td>
-                    </tr>`;
-                });
-
-                html += '</tbody></table>';
-
-                if (users.length > 50) {
-                    html += `<p class="text-muted">Показано 50 из ${users.length} пользователей</p>`;
-                }
-
-                usersListEl.innerHTML = html;
+                renderAudienceList(users);
                 sendBtn.disabled = false;
             }
 
@@ -1609,6 +1596,71 @@ async function loadFilteredPreview() {
         previewResult.style.display = 'none';
         sendBtn.disabled = true;
     }
+}
+
+// Отрисовка списка аудитории
+function renderAudienceList(users, searchTerm = '') {
+    const usersListEl = document.getElementById('previewUsersList');
+    const showingCountEl = document.getElementById('audienceShowingCount');
+
+    // Дедупликация по tg_user_id
+    const seen = new Set();
+    let uniqueUsers = users.filter(user => {
+        if (seen.has(user.tg_user_id)) return false;
+        seen.add(user.tg_user_id);
+        return true;
+    });
+
+    let filteredUsers = uniqueUsers;
+
+    // Фильтрация по поиску
+    if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filteredUsers = uniqueUsers.filter(user => {
+            const name = (user.username || user.full_name || '').toLowerCase();
+            const email = (user.email || '').toLowerCase();
+            return name.includes(term) || email.includes(term);
+        });
+    }
+
+    if (filteredUsers.length === 0) {
+        usersListEl.innerHTML = '<div class="empty-state" style="padding: 20px; text-align: center; color: #64748b;">Ничего не найдено</div>';
+        if (showingCountEl) showingCountEl.textContent = '0';
+        return;
+    }
+
+    const showCount = Math.min(filteredUsers.length, 50);
+    let html = '';
+
+    filteredUsers.slice(0, showCount).forEach(user => {
+        const displayName = user.username || user.full_name || 'User';
+        const email = user.email || '';
+        html += `<div class="audience-item">
+            <div class="audience-item-info">
+                <span class="audience-item-name">${escapeHtml(displayName)}</span>
+                ${email ? `<span class="audience-item-email">${escapeHtml(email)}</span>` : ''}
+                <span class="audience-item-id">${user.tg_user_id}</span>
+            </div>
+            <button class="btn btn-test" onclick="sendTestToUser('${user.tg_user_id}', '${escapeHtml(user.username || '')}')">Тест</button>
+        </div>`;
+    });
+
+    usersListEl.innerHTML = html;
+
+    if (showingCountEl) {
+        if (searchTerm) {
+            showingCountEl.textContent = filteredUsers.length > showCount ? `${showCount}/${filteredUsers.length}` : `${filteredUsers.length}`;
+        } else {
+            showingCountEl.textContent = uniqueUsers.length > showCount ? `${showCount}/${uniqueUsers.length}` : `${uniqueUsers.length}`;
+        }
+    }
+}
+
+// Фильтрация списка аудитории по имени/email
+function filterAudienceList() {
+    const searchInput = document.getElementById('audienceSearchInput');
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+    renderAudienceList(lastPreviewUsers, searchTerm);
 }
 
 // Отправка рассылки по текущим фильтрам
@@ -1703,7 +1755,7 @@ async function sendBroadcastWithFilters() {
         showNotification('Ошибка отправки рассылки', 'error');
     } finally {
         sendBtn.disabled = false;
-        sendBtn.textContent = '📤 Отправить рассылку';
+        sendBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Отправить рассылку`;
     }
 }
 
@@ -1736,19 +1788,177 @@ function getFilterDescription(filters) {
     return parts.length > 0 ? `Фильтры: ${parts.join(', ')}` : 'Фильтры: Все пользователи';
 }
 
+// === НОВЫЕ ФУНКЦИИ ДЛЯ UI РАССЫЛКИ ===
+
+// Открытие попапа фильтров
+function openFilterPopup() {
+    loadMarathons(); // Обновить список марафонов
+    document.getElementById('filterPopup').style.display = 'block';
+}
+
+// Закрытие попапа фильтров
+function closeFilterPopup() {
+    document.getElementById('filterPopup').style.display = 'none';
+}
+
+// Применить фильтры и закрыть попап
+function applyFilters() {
+    closeFilterPopup();
+    updateActiveFiltersDisplay();
+    loadFilteredPreview(); // Автоматически загрузить preview
+}
+
+// Обновить отображение активных фильтров в виде тегов
+function updateActiveFiltersDisplay() {
+    const container = document.getElementById('activeFiltersDisplay');
+    if (!container) return;
+
+    const filters = collectFilters();
+    const tags = [];
+
+    if (filters.marathon_ref_id) {
+        const marathon = currentMarathons.find(m => m.reference_id === filters.marathon_ref_id);
+        tags.push({ key: 'marathon', label: marathon ? marathon.title : 'Марафон' });
+    }
+
+    if (filters.is_purchased === true) tags.push({ key: 'purchased', label: 'Купили' });
+    if (filters.is_purchased === false) tags.push({ key: 'purchased', label: 'Не купили' });
+
+    if (filters.has_active_access === true) tags.push({ key: 'access', label: 'С доступом' });
+    if (filters.has_active_access === false) tags.push({ key: 'access', label: 'Без доступа' });
+
+    if (filters.has_started === true) tags.push({ key: 'started', label: 'Начали' });
+    if (filters.has_started === false) tags.push({ key: 'started', label: 'Не начали' });
+
+    if (filters.progress_min !== undefined || filters.progress_max !== undefined) {
+        tags.push({ key: 'progress', label: `${filters.progress_min || 0}-${filters.progress_max || 100}%` });
+    }
+
+    if (filters.completed_days_min !== undefined || filters.completed_days_max !== undefined) {
+        const min = filters.completed_days_min || 0;
+        const max = filters.completed_days_max !== undefined ? filters.completed_days_max : '∞';
+        tags.push({ key: 'days', label: `${min}-${max} дней` });
+    }
+
+    if (tags.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = tags.map(tag =>
+        `<span class="filter-tag">${escapeHtml(tag.label)}<span class="remove-filter" onclick="removeFilter('${tag.key}')">&times;</span></span>`
+    ).join('');
+}
+
+// Удалить конкретный фильтр
+function removeFilter(key) {
+    switch(key) {
+        case 'marathon':
+            document.getElementById('filterMarathon').value = '';
+            break;
+        case 'purchased':
+            document.getElementById('filterIsPurchased').value = '';
+            break;
+        case 'access':
+            document.getElementById('filterHasAccess').value = '';
+            break;
+        case 'started':
+            document.getElementById('filterHasStarted').value = '';
+            break;
+        case 'progress':
+            document.getElementById('filterProgressMin').value = '';
+            document.getElementById('filterProgressMax').value = '';
+            break;
+        case 'days':
+            document.getElementById('filterCompletedDaysMin').value = '';
+            document.getElementById('filterCompletedDaysMax').value = '';
+            break;
+    }
+    updateActiveFiltersDisplay();
+    loadFilteredPreview();
+}
+
+// Обновить preview сообщения в реальном времени
+function updateMessagePreview() {
+    const messageEl = document.getElementById('broadcastMessage');
+    const parseModeEl = document.getElementById('broadcastParseMode');
+    const previewEl = document.getElementById('messagePreview');
+    const charCountEl = document.getElementById('charCount');
+
+    const message = messageEl.value;
+    const parseMode = parseModeEl.value;
+
+    // Обновить счетчик символов
+    if (charCountEl) {
+        charCountEl.textContent = message.length;
+        charCountEl.style.color = message.length > 4096 ? '#ef4444' : '#94a3b8';
+    }
+
+    // Обновить preview
+    if (!previewEl) return;
+
+    if (!message.trim()) {
+        previewEl.innerHTML = '<span class="tg-placeholder">Введите текст сообщения...</span>';
+        return;
+    }
+
+    let formattedMessage = escapeHtml(message);
+
+    if (parseMode === 'HTML') {
+        // Парсим HTML теги для preview
+        formattedMessage = message
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/&lt;b&gt;(.*?)&lt;\/b&gt;/gi, '<b>$1</b>')
+            .replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/gi, '<strong>$1</strong>')
+            .replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/gi, '<i>$1</i>')
+            .replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/gi, '<em>$1</em>')
+            .replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/gi, '<u>$1</u>')
+            .replace(/&lt;s&gt;(.*?)&lt;\/s&gt;/gi, '<s>$1</s>')
+            .replace(/&lt;strike&gt;(.*?)&lt;\/strike&gt;/gi, '<s>$1</s>')
+            .replace(/&lt;code&gt;(.*?)&lt;\/code&gt;/gi, '<code>$1</code>')
+            .replace(/&lt;pre&gt;(.*?)&lt;\/pre&gt;/gis, '<pre>$1</pre>')
+            .replace(/&lt;a href=&quot;(.*?)&quot;&gt;(.*?)&lt;\/a&gt;/gi, '<a href="$1" target="_blank">$2</a>');
+    } else if (parseMode === 'Markdown') {
+        // Парсим Markdown для preview
+        formattedMessage = escapeHtml(message)
+            .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+            .replace(/\*(.+?)\*/g, '<b>$1</b>')
+            .replace(/__(.+?)__/g, '<i>$1</i>')
+            .replace(/_(.+?)_/g, '<i>$1</i>')
+            .replace(/~~(.+?)~~/g, '<s>$1</s>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    }
+
+    previewEl.innerHTML = formattedMessage;
+}
+
 // Закрытие модальных окон по клику вне них и по Escape
 window.addEventListener('click', function(event) {
     const testModal = document.getElementById('testMessageModal');
+    const filterPopup = document.getElementById('filterPopup');
+
     if (event.target === testModal) {
         closeTestMessageModal();
+    }
+    if (event.target === filterPopup) {
+        closeFilterPopup();
     }
 });
 
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         const testModal = document.getElementById('testMessageModal');
+        const filterPopup = document.getElementById('filterPopup');
+
         if (testModal && testModal.style.display === 'block') {
             closeTestMessageModal();
+        }
+        if (filterPopup && filterPopup.style.display === 'block') {
+            closeFilterPopup();
         }
     }
 });

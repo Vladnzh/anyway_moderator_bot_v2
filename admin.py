@@ -865,11 +865,17 @@ async def preview_filtered_users(request: FilteredPreviewRequest, _: bool = Depe
                 message="Пользователи не найдены по заданным фильтрам"
             )
 
-        # Преобразуем в нужный формат
+        # Преобразуем в нужный формат с дедупликацией по telegram_id
         telegram_users = []
+        seen_ids = set()
         for user in users:
+            tg_id = str(user.get("telegram_id", ""))
+            if not tg_id or tg_id in seen_ids:
+                continue
+            seen_ids.add(tg_id)
+
             telegram_users.append({
-                "tg_user_id": str(user.get("telegram_id", "")),
+                "tg_user_id": tg_id,
                 "username": user.get("telegram_username", ""),
                 "email": user.get("email", ""),
                 "full_name": user.get("display_name") or f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
@@ -919,7 +925,17 @@ async def send_broadcast_filtered(
                 message="Не найдено пользователей по заданным фильтрам"
             )
 
-        logger.info(f"📤 Начинаем рассылку по фильтрам: {len(users)} пользователей")
+        # Дедупликация по telegram_id
+        unique_users = []
+        seen_ids = set()
+        for user in users:
+            tg_id = user.get("telegram_id")
+            if not tg_id or tg_id in seen_ids:
+                continue
+            seen_ids.add(tg_id)
+            unique_users.append(user)
+
+        logger.info(f"📤 Начинаем рассылку по фильтрам: {len(unique_users)} уникальных пользователей (из {len(users)} записей)")
 
         # Отправляем сообщения
         success_count = 0
@@ -927,7 +943,7 @@ async def send_broadcast_filtered(
         failed_users = []
 
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
-            for user in users:
+            for user in unique_users:
                 tg_user_id = user.get("telegram_id")
                 if not tg_user_id:
                     continue
@@ -971,7 +987,7 @@ async def send_broadcast_filtered(
             success=True,
             message=f"Рассылка завершена: отправлено {success_count}, ошибок {failed_count}",
             data={
-                "total": len(users),
+                "total": len(unique_users),
                 "success": success_count,
                 "failed": failed_count,
                 "failed_users": failed_users
