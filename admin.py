@@ -572,11 +572,16 @@ class ReactionRequest(BaseModel):
     emoji: str
 
 # ---- Модели для массовой рассылки ----
+class InlineButton(BaseModel):
+    text: str  # Текст кнопки
+    url: str   # URL для перехода
+
 class BroadcastRequest(BaseModel):
     message: str  # Текст сообщения
     filters: Optional[Dict[str, Any]] = None  # Фильтры пользователей (TODO: добавить поддержку)
     parse_mode: Optional[str] = None  # HTML, Markdown или None
     disable_web_page_preview: bool = True  # Отключить превью ссылок
+    button: Optional[InlineButton] = None  # Inline кнопка под сообщением
 
 class UserFilterResponse(BaseModel):
     success: bool
@@ -753,6 +758,15 @@ async def send_broadcast(request: BroadcastRequest, _: bool = Depends(require_ap
                     if request.parse_mode:
                         payload["parse_mode"] = request.parse_mode
 
+                    # Добавляем inline кнопку если указана
+                    if request.button:
+                        payload["reply_markup"] = {
+                            "inline_keyboard": [[{
+                                "text": request.button.text,
+                                "url": request.button.url
+                            }]]
+                        }
+
                     response = await client.post(url, json=payload)
                     result_data = response.json()
 
@@ -800,6 +814,7 @@ class TestMessageRequest(BaseModel):
     tg_user_id: int
     parse_mode: Optional[str] = None
     disable_web_page_preview: bool = True  # Отключить превью ссылок
+    button: Optional[InlineButton] = None  # Inline кнопка под сообщением
 
 @app.post("/api/broadcast/test")
 async def send_test_message(request: TestMessageRequest, _: bool = Depends(require_api_admin)):
@@ -819,6 +834,15 @@ async def send_test_message(request: TestMessageRequest, _: bool = Depends(requi
 
         if request.parse_mode:
             payload["parse_mode"] = request.parse_mode
+
+        # Добавляем inline кнопку если указана
+        if request.button:
+            payload["reply_markup"] = {
+                "inline_keyboard": [[{
+                    "text": request.button.text,
+                    "url": request.button.url
+                }]]
+            }
 
         async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
             response = await client.post(url, json=payload)
@@ -853,6 +877,7 @@ class FilteredBroadcastRequest(BaseModel):
     parse_mode: Optional[str] = None
     filters: Dict[str, Any] = {}
     disable_web_page_preview: bool = True  # Отключить превью ссылок
+    button: Optional[InlineButton] = None  # Inline кнопка под сообщением
 
 @app.get("/api/marathons")
 async def list_marathons(_: bool = Depends(require_api_admin)):
@@ -986,6 +1011,15 @@ async def send_broadcast_filtered(
 
                     if request.parse_mode:
                         payload["parse_mode"] = request.parse_mode
+
+                    # Добавляем inline кнопку если указана
+                    if request.button:
+                        payload["reply_markup"] = {
+                            "inline_keyboard": [[{
+                                "text": request.button.text,
+                                "url": request.button.url
+                            }]]
+                        }
 
                     response = await client.post(url, json=payload)
                     result_data = response.json()

@@ -212,6 +212,22 @@
                                         </label>
                                     </div>
                                 </div>
+
+                                <!-- Настройка кнопки под сообщением -->
+                                <div class="button-settings">
+                                    <div class="button-settings-header">
+                                        <label class="checkbox-option">
+                                            <input type="checkbox" id="enableButton" onchange="toggleButtonSettings()">
+                                            <span>Добавить кнопку</span>
+                                        </label>
+                                    </div>
+                                    <div id="buttonFields" class="button-fields" style="display: none;">
+                                        <div class="button-field-row">
+                                            <input type="text" id="buttonText" placeholder="Текст кнопки" class="input-field" oninput="updateMessagePreview()">
+                                            <input type="url" id="buttonUrl" placeholder="https://example.com" class="input-field" oninput="updateMessagePreview()">
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Telegram-style превью -->
@@ -227,6 +243,9 @@
                                         <span class="tg-placeholder">Введите текст сообщения...</span>
                                     </div>
                                     <div class="tg-message-time">12:00</div>
+                                </div>
+                                <div id="buttonPreview" class="tg-button-preview" style="display: none;">
+                                    <span id="buttonPreviewText"></span>
                                 </div>
                             </div>
                         </div>

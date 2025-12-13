@@ -2816,6 +2816,71 @@ body {
 }
 
 /* ========================================
+   Button Settings (Inline Keyboard)
+   ======================================== */
+
+.button-settings {
+    padding: 12px 16px;
+    background: #0f172a;
+    border-top: 1px solid #334155;
+}
+
+.button-settings-header {
+    margin-bottom: 0;
+}
+
+.button-fields {
+    margin-top: 12px;
+}
+
+.button-field-row {
+    display: flex;
+    gap: 12px;
+}
+
+.button-field-row .input-field {
+    flex: 1;
+    padding: 10px 14px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.button-field-row .input-field:focus {
+    border-color: #3b82f6;
+}
+
+.button-field-row .input-field::placeholder {
+    color: #64748b;
+}
+
+/* Telegram Button Preview */
+.tg-button-preview {
+    margin-top: 8px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tg-button-preview:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-1px);
+}
+
+.tg-button-preview span {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ========================================
    Emoji Picker Modal
    ======================================== */
 

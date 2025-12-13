@@ -1298,12 +1298,14 @@ async function sendBroadcast() {
         showNotification('Начинаем рассылку...', 'info');
 
         const disableLinkPreview = document.getElementById('disableLinkPreview')?.checked ?? true;
+        const button = getButtonData();
 
         const response = await apiRequest('POST', '/broadcast/send', {
             message: message,
             parse_mode: parseMode,
             filters: null,
-            disable_web_page_preview: disableLinkPreview
+            disable_web_page_preview: disableLinkPreview,
+            button: button
         });
 
         if (response.success) {
@@ -1381,6 +1383,22 @@ function clearBroadcastForm() {
         charCountEl.textContent = '0';
         charCountEl.style.color = '#94a3b8';
     }
+
+    // Сбросить настройки кнопки
+    const enableButton = document.getElementById('enableButton');
+    if (enableButton) enableButton.checked = false;
+
+    const buttonText = document.getElementById('buttonText');
+    if (buttonText) buttonText.value = '';
+
+    const buttonUrl = document.getElementById('buttonUrl');
+    if (buttonUrl) buttonUrl.value = '';
+
+    const buttonFields = document.getElementById('buttonFields');
+    if (buttonFields) buttonFields.style.display = 'none';
+
+    const buttonPreview = document.getElementById('buttonPreview');
+    if (buttonPreview) buttonPreview.style.display = 'none';
 }
 
 // === ФУНКЦИИ ДЛЯ ТЕСТОВОЙ РАССЫЛКИ ===
@@ -1421,12 +1439,14 @@ async function sendTestMessage() {
         showNotification('Отправка тестового сообщения...', 'info');
 
         const disableLinkPreview = document.getElementById('disableLinkPreview')?.checked ?? true;
+        const button = getButtonData();
 
         const response = await apiRequest('POST', '/broadcast/test', {
             tg_user_id: parseInt(tgUserId),
             message: message,
             parse_mode: parseMode,
-            disable_web_page_preview: disableLinkPreview
+            disable_web_page_preview: disableLinkPreview,
+            button: button
         });
 
         if (response.success) {
@@ -1690,12 +1710,14 @@ async function sendBroadcastWithFilters() {
         showNotification('Начинаем рассылку...', 'info');
 
         const disableLinkPreview = document.getElementById('disableLinkPreview')?.checked ?? true;
+        const button = getButtonData();
 
         const response = await apiRequest('POST', '/broadcast/send-filtered', {
             message: message,
             parse_mode: parseMode,
             filters: filters,
-            disable_web_page_preview: disableLinkPreview
+            disable_web_page_preview: disableLinkPreview,
+            button: button
         });
 
         if (response.success) {
@@ -1888,6 +1910,51 @@ function updateMessagePreview() {
     formattedMessage = formattedMessage.replace(/\n/g, '<br>');
 
     previewEl.innerHTML = formattedMessage;
+
+    // Обновляем превью кнопки
+    updateButtonPreview();
+}
+
+// Показать/скрыть поля для кнопки
+function toggleButtonSettings() {
+    const enabled = document.getElementById('enableButton').checked;
+    const fields = document.getElementById('buttonFields');
+    if (fields) {
+        fields.style.display = enabled ? 'block' : 'none';
+    }
+    updateButtonPreview();
+}
+
+// Обновить превью кнопки
+function updateButtonPreview() {
+    const buttonPreview = document.getElementById('buttonPreview');
+    const buttonPreviewText = document.getElementById('buttonPreviewText');
+    const enabled = document.getElementById('enableButton')?.checked;
+    const buttonText = document.getElementById('buttonText')?.value?.trim();
+
+    if (buttonPreview && buttonPreviewText) {
+        if (enabled && buttonText) {
+            buttonPreview.style.display = 'block';
+            buttonPreviewText.textContent = buttonText;
+        } else {
+            buttonPreview.style.display = 'none';
+        }
+    }
+}
+
+// Получить данные кнопки для отправки
+function getButtonData() {
+    const enabled = document.getElementById('enableButton')?.checked;
+    const buttonText = document.getElementById('buttonText')?.value?.trim();
+    const buttonUrl = document.getElementById('buttonUrl')?.value?.trim();
+
+    if (enabled && buttonText && buttonUrl) {
+        return {
+            text: buttonText,
+            url: buttonUrl
+        };
+    }
+    return null;
 }
 
 // Закрытие модальных окон по клику вне них и по Escape
