@@ -274,19 +274,19 @@ async def check_media_duplicates(context: ContextTypes.DEFAULT_TYPE, message, me
             file_hash = get_file_hash(bytes(file_content))
             
             logger.debug(f"🔐 Хэш файла: {file_hash}")
-            
-            # Проверяем, есть ли уже такой хэш
-            if db.check_media_hash(file_hash):
-                logger.info(f"🚫 Обнаружен дубликат медиафайла: {file_hash}")
+
+            # Проверяем, есть ли уже такой хэш (от другого пользователя)
+            if db.check_media_hash(file_hash, message.from_user.id):
+                logger.info(f"🚫 Обнаружен дубликат медиафайла от другого пользователя: {file_hash}")
                 return True
-            
-            # Добавляем новый хэш
+
+            # Добавляем/обновляем хэш
             file_type = "photo" if file_id in media_info["photo_file_ids"] else "video"
             db.add_media_hash(
                 file_hash, file_id, file_type,
                 message.from_user.id, message.chat_id, message.message_id
             )
-            logger.debug(f"✅ Новый {file_type} добавлен в базу: {file_hash}")
+            logger.debug(f"✅ {file_type} добавлен/обновлён в базу: {file_hash}")
             
         except Exception as e:
             logger.error(f"❌ Ошибка обработки медиафайла {file_id}: {e}")
@@ -613,7 +613,7 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     logger.info(f"🎯 Тег сработал: {matched_tag['tag']} | Пользователь: {user_info}")
-    
+
     # Логируем настройки тега
     logger.debug(f"⚙️ Настройки тега:")
     logger.debug(f"   🔥 Эмодзи: {matched_tag['emoji']}")
@@ -638,18 +638,9 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.debug(f"📤 Отправлено сообщение: {matched_tag['reply_need_photo']}")
         return
     
-    # Проверяем дублирование медиафайлов
-    if media_info['has_photo'] or media_info['has_video']:
-        is_duplicate = await check_media_duplicates(context, message, media_info)
-        if is_duplicate:
-            logger.info(f"🚫 Обнаружен дублирующийся медиафайл")
-            if matched_tag['reply_duplicate']:
-                await message.reply_text(matched_tag['reply_duplicate'])
-                logger.debug(f"📤 Отправлено сообщение о дубликате: {matched_tag['reply_duplicate']}")
-            return
-    
     # Проверяем режим модерации
     if matched_tag['moderation_enabled']:
+        # При модерации НЕ проверяем дубликаты - модератор сам решит
         logger.info(f"⏳ Добавляем в очередь модерации: {matched_tag['tag']}")
         # Добавляем в очередь модерации
         item_id = add_to_moderation_queue(message, matched_tag, media_info, thread_name)
@@ -664,6 +655,15 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.debug(f"📤 Отправлено сообщение о модерации: {matched_tag['reply_pending']}")
         
         return
+
+    # Обычный режим (без модерации) - проверяем дубликаты
+    if media_info['has_photo'] or media_info['has_video']:
+        is_duplicate = await check_media_duplicates(context, message, media_info)
+        if is_duplicate:
+            logger.info(f"🚫 Обнаружен дублирующийся медиафайл")
+            if matched_tag['reply_duplicate']:
+                await message.reply_text(matched_tag['reply_duplicate'])
+            return
 
     # Обычный режим - ставим реакцию с задержкой
     delay = matched_tag['delay']
