@@ -293,6 +293,45 @@ async def check_media_duplicates(context: ContextTypes.DEFAULT_TYPE, message, me
     
     return False
 
+async def log_failed_reaction(item: Dict[str, Any], error_message: str):
+    """Записать неудачную реакцию в лог"""
+    try:
+        moderation_item = None
+        if item.get('moderation_id'):
+            moderation_item = db.get_moderation_by_id(item['moderation_id'])
+
+        if moderation_item:
+            log_data = {
+                'user_id': moderation_item.get('user_id', 0),
+                'username': moderation_item.get('username', ''),
+                'chat_id': item['chat_id'],
+                'message_id': item['message_id'],
+                'trigger': moderation_item.get('tag', ''),
+                'emoji': item['emoji'],
+                'thread_name': moderation_item.get('thread_name', ''),
+                'media_type': '',
+                'caption': f"Ошибка: {error_message}",
+                'status': 'failed'
+            }
+        else:
+            log_data = {
+                'user_id': 0,
+                'username': '',
+                'chat_id': item['chat_id'],
+                'message_id': item['message_id'],
+                'trigger': '',
+                'emoji': item['emoji'],
+                'thread_name': '',
+                'media_type': '',
+                'caption': f"Ошибка: {error_message}",
+                'status': 'failed'
+            }
+
+        db.add_log(log_data)
+        logger.info(f"📝 Записан лог неудачной реакции для сообщения {item['message_id']}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка записи лога неудачной реакции: {e}")
+
 async def process_reaction_queue(context: ContextTypes.DEFAULT_TYPE):
     """Обработать очередь реакций с оптимизацией"""
     try:
@@ -355,9 +394,40 @@ async def process_reaction_queue(context: ContextTypes.DEFAULT_TYPE):
                                 logger.debug(f"📊 Данные из очереди отправлены успешно")
                             else:
                                 logger.warning(f"📊 Ошибка отправки данных из очереди: {result}")
+
+                            # Записываем в лог
+                            log_data = {
+                                'user_id': moderation_item.get('user_id', 0),
+                                'username': moderation_item.get('username', ''),
+                                'chat_id': item['chat_id'],
+                                'message_id': item['message_id'],
+                                'trigger': moderation_item.get('tag', ''),
+                                'emoji': item['emoji'],
+                                'thread_name': thread_name,
+                                'media_type': media_info.get('has_photo') and 'photo' or (media_info.get('has_video') and 'video' or ''),
+                                'caption': moderation_item.get('caption', ''),
+                                'status': 'success'
+                            }
+                            db.add_log(log_data)
+                            logger.debug("📝 Запись добавлена в лог")
+
+                            # Отправляем reply_ok для автоматических реакций
+                            if moderation_item.get('status') == 'auto_approved':
+                                reply_ok = moderation_item.get('reply_ok', '')
+                                if reply_ok:
+                                    try:
+                                        await context.bot.send_message(
+                                            chat_id=item['chat_id'],
+                                            text=reply_ok,
+                                            reply_to_message_id=item['message_id']
+                                        )
+                                        logger.debug(f"📤 Отправлено reply_ok: {reply_ok}")
+                                    except Exception as reply_e:
+                                        logger.warning(f"⚠️ Не удалось отправить reply_ok: {reply_e}")
+
                     except Exception as e:
                         logger.error(f"❌ Ошибка отправки данных о реакции из очереди: {e}")
-                
+
                 # Удаляем из очереди
                 db.remove_reaction_from_queue(item['id'])
                 
@@ -421,15 +491,19 @@ async def process_reaction_queue(context: ContextTypes.DEFAULT_TYPE):
                         
                     except Exception as fallback_e:
                         logger.error(f"❌ Не удалось поставить запасную реакцию ❤️ для {item['message_id']}: {fallback_e}")
-                        
+
                         # Если превышено максимальное количество попыток, удаляем из очереди
-                        if attempts >= 10:
+                        if attempts >= 3:
                             logger.warning(f"🗑️ Превышено максимальное количество попыток ({attempts}) для сообщения {item['message_id']}, удаляем из очереди")
+                            # Записываем в лог как неудачу
+                            await log_failed_reaction(item, str(fallback_e))
                             db.remove_reaction_from_queue(item['id'])
                 else:
                     # Для других ошибок проверяем лимит попыток
-                    if attempts >= 10:
+                    if attempts >= 3:
                         logger.warning(f"🗑️ Превышено максимальное количество попыток ({attempts}) для сообщения {item['message_id']}, удаляем из очереди")
+                        # Записываем в лог как неудачу
+                        await log_failed_reaction(item, str(e))
                         db.remove_reaction_from_queue(item['id'])
     
     except Exception as e:
@@ -449,7 +523,8 @@ def add_to_moderation_queue(message, matched_tag: Dict[str, Any], media_info: Di
             'caption': message.caption or '',
             'media_info': media_info,
             'thread_name': thread_name,
-            'counter_name': matched_tag.get('counter_name', '')
+            'counter_name': matched_tag.get('counter_name', ''),
+            'reply_ok': matched_tag.get('reply_ok', '')
         }
         
         item_id = db.add_moderation_item(item_data)
@@ -656,52 +731,53 @@ async def handle_any(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         return
 
-    # Обычный режим (без модерации) - проверяем дубликаты
-    if media_info['has_photo'] or media_info['has_video']:
-        is_duplicate = await check_media_duplicates(context, message, media_info)
-        if is_duplicate:
-            logger.info(f"🚫 Обнаружен дублирующийся медиафайл")
-            if matched_tag['reply_duplicate']:
-                await message.reply_text(matched_tag['reply_duplicate'])
-            return
-
-    # Обычный режим - ставим реакцию с задержкой
+    # Обычный режим - ставим реакцию через очередь
     delay = matched_tag['delay']
     logger.info(f"🔥 Автоматическая реакция: {matched_tag['emoji']} | Задержка: {delay}с")
-    
-    if delay > 0:
-        logger.debug(f"⏳ Ожидание {delay}с перед реакцией...")
-        await asyncio.sleep(delay)
 
-    # Ставим реакцию
-    try:
-        logger.info(f"🎯 ПОПЫТКА поставить реакцию: {matched_tag['emoji']} | Пользователь: {user_info}")
-        await message.set_reaction(ReactionTypeEmoji(emoji=matched_tag['emoji']))
-        logger.info(f"✅ Реакция УСПЕШНО поставлена: {matched_tag['emoji']} | Пользователь: {user_info}")
-        
-        log_bot_event('reaction_set', {
-            'emoji': matched_tag['emoji'],
-            'user': message.from_user.username or message.from_user.first_name,
-            'tag': matched_tag['tag']
-        })
-        
-        # Отправляем данные о реакции на бэкенд
-        logger.info("📊 НАЧИНАЕМ отправку данных о реакции на бэкенд...")
-        result = await send_reaction_data(message, matched_tag, media_info, thread_name)
-        logger.info(f"📊 РЕЗУЛЬТАТ отправки данных: {result}")
-        
-        # Отправляем сообщение об успехе
-        if matched_tag['reply_ok']:
-            await message.reply_text(matched_tag['reply_ok'])
-            logger.debug(f"📤 Отправлено сообщение об успехе: {matched_tag['reply_ok']}")
-        
-        # Записываем в лог
-        append_log(message, matched_tag, thread_name, media_info)
-        logger.debug("📝 Запись добавлена в локальный лог")
-        
-    except Exception as e:
-        logger.error(f"❌ Ошибка постановки реакции: {e}")
-        log_bot_event('error', {'message': f"Ошибка постановки реакции: {e}"})
+    # Если задержка = 0, ставим реакцию сразу
+    if delay == 0:
+        try:
+            logger.info(f"🎯 ПОПЫТКА поставить реакцию: {matched_tag['emoji']} | Пользователь: {user_info}")
+            await message.set_reaction(ReactionTypeEmoji(emoji=matched_tag['emoji']))
+            logger.info(f"✅ Реакция УСПЕШНО поставлена: {matched_tag['emoji']} | Пользователь: {user_info}")
+
+            log_bot_event('reaction_set', {
+                'emoji': matched_tag['emoji'],
+                'user': message.from_user.username or message.from_user.first_name,
+                'tag': matched_tag['tag']
+            })
+
+            # Отправляем данные о реакции на бэкенд
+            logger.info("📊 НАЧИНАЕМ отправку данных о реакции на бэкенд...")
+            result = await send_reaction_data(message, matched_tag, media_info, thread_name)
+            logger.info(f"📊 РЕЗУЛЬТАТ отправки данных: {result}")
+
+            # Отправляем сообщение об успехе
+            if matched_tag['reply_ok']:
+                await message.reply_text(matched_tag['reply_ok'])
+                logger.debug(f"📤 Отправлено сообщение об успехе: {matched_tag['reply_ok']}")
+
+            # Записываем в лог
+            append_log(message, matched_tag, thread_name, media_info)
+            logger.debug("📝 Запись добавлена в локальный лог")
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка постановки реакции: {e}")
+            log_bot_event('error', {'message': f"Ошибка постановки реакции: {e}"})
+        return
+
+    # Если есть задержка - добавляем в очередь
+    logger.info(f"⏳ Добавляем в очередь с задержкой {delay}с")
+
+    # Создаём запись в moderation_queue для хранения данных
+    item_id = add_to_moderation_queue(message, matched_tag, media_info, thread_name)
+    # Сразу помечаем как auto_approved
+    db.update_moderation_status(item_id, "auto_approved")
+
+    # Добавляем в очередь реакций с задержкой
+    db.add_reaction_queue(item_id, message.chat_id, message.message_id, matched_tag['emoji'], delay)
+    logger.info(f"📝 Добавлено в очередь реакций, ID: {item_id}, выполнение через {delay}с")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""

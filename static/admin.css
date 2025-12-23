@@ -460,6 +460,32 @@ body {
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
+.log-status-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.log-status-badge.success {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.log-status-badge.failed {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.log-item-failed {
+    border-color: #ef4444;
+    background: linear-gradient(135deg, #1e293b 0%, #3b1c1c 100%);
+}
+
+.log-item-failed:hover {
+    border-color: #f87171;
+}
+
 .log-meta {
     display: flex;
     justify-content: space-between;

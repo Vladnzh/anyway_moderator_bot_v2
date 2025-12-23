@@ -97,9 +97,16 @@ class Database:
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     thread_name TEXT DEFAULT '',
                     media_type TEXT DEFAULT '',
-                    caption TEXT DEFAULT ''
+                    caption TEXT DEFAULT '',
+                    status TEXT DEFAULT 'success'
                 )
             """)
+
+            # Добавляем колонку status если её нет (для существующих БД)
+            try:
+                conn.execute("ALTER TABLE logs ADD COLUMN status TEXT DEFAULT 'success'")
+            except:
+                pass  # Колонка уже существует
             
             # Таблица модерации
             conn.execute("""
@@ -116,6 +123,7 @@ class Database:
                     media_info TEXT DEFAULT '{}',
                     thread_name TEXT DEFAULT '',
                     counter_name TEXT DEFAULT '',
+                    reply_ok TEXT DEFAULT '',
                     status TEXT DEFAULT 'pending',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -140,11 +148,12 @@ class Database:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS reaction_queue (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    moderation_id TEXT NOT NULL,
+                    moderation_id TEXT,
                     chat_id INTEGER NOT NULL,
                     message_id INTEGER NOT NULL,
                     emoji TEXT NOT NULL,
                     attempts INTEGER DEFAULT 0,
+                    execute_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -175,7 +184,20 @@ class Database:
                 conn.execute("ALTER TABLE reaction_queue ADD COLUMN attempts INTEGER DEFAULT 0")
                 logger.info("✅ Добавлено поле attempts в таблицу reaction_queue")
             except sqlite3.OperationalError:
-                # Поле уже существует
+                pass
+
+            # Миграция: добавляем поле execute_at в reaction_queue
+            try:
+                conn.execute("ALTER TABLE reaction_queue ADD COLUMN execute_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                logger.info("✅ Добавлено поле execute_at в таблицу reaction_queue")
+            except sqlite3.OperationalError:
+                pass
+
+            # Миграция: добавляем поле reply_ok в moderation_queue
+            try:
+                conn.execute("ALTER TABLE moderation_queue ADD COLUMN reply_ok TEXT DEFAULT ''")
+                logger.info("✅ Добавлено поле reply_ok в таблицу moderation_queue")
+            except sqlite3.OperationalError:
                 pass
             
             conn.commit()
@@ -280,15 +302,15 @@ class Database:
         """Добавить запись в лог"""
         with self.get_connection() as conn:
             conn.execute("""
-                INSERT INTO logs (user_id, username, chat_id, message_id, trigger, emoji, 
-                                thread_name, media_type, caption)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO logs (user_id, username, chat_id, message_id, trigger, emoji,
+                                thread_name, media_type, caption, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 log_data['user_id'], log_data.get('username', ''),
                 log_data['chat_id'], log_data['message_id'],
                 log_data['trigger'], log_data['emoji'],
                 log_data.get('thread_name', ''), log_data.get('media_type', ''),
-                log_data.get('caption', '')
+                log_data.get('caption', ''), log_data.get('status', 'success')
             ))
             conn.commit()
     
@@ -351,15 +373,16 @@ class Database:
         with self.get_connection() as conn:
             conn.execute("""
                 INSERT INTO moderation_queue (id, chat_id, message_id, user_id, username,
-                                            tag, emoji, text, caption, media_info, thread_name, counter_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                            tag, emoji, text, caption, media_info, thread_name, counter_name, reply_ok)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 item_id, item_data['chat_id'], item_data['message_id'],
                 item_data['user_id'], item_data.get('username', ''),
                 item_data['tag'], item_data['emoji'],
                 item_data.get('text', ''), item_data.get('caption', ''),
                 json.dumps(item_data.get('media_info', {})),
-                item_data.get('thread_name', ''), item_data.get('counter_name', '')
+                item_data.get('thread_name', ''), item_data.get('counter_name', ''),
+                item_data.get('reply_ok', '')
             ))
             conn.commit()
         return item_id
@@ -473,20 +496,30 @@ class Database:
             return cursor.fetchone() is not None
 
     # === ОЧЕРЕДЬ РЕАКЦИЙ ===
-    def add_reaction_queue(self, moderation_id: str, chat_id: int, message_id: int, emoji: str):
-        """Добавить в очередь реакций"""
+    def add_reaction_queue(self, moderation_id: str, chat_id: int, message_id: int, emoji: str, delay_seconds: int = 0):
+        """Добавить в очередь реакций с задержкой"""
         with self.get_connection() as conn:
             conn.execute("""
-                INSERT INTO reaction_queue (moderation_id, chat_id, message_id, emoji)
-                VALUES (?, ?, ?, ?)
-            """, (moderation_id, chat_id, message_id, emoji))
+                INSERT INTO reaction_queue (moderation_id, chat_id, message_id, emoji, execute_at)
+                VALUES (?, ?, ?, ?, datetime('now', '+' || ? || ' seconds'))
+            """, (moderation_id, chat_id, message_id, emoji, delay_seconds))
             conn.commit()
-    
+
     def get_reaction_queue(self) -> List[Dict[str, Any]]:
-        """Получить очередь реакций"""
+        """Получить очередь реакций (только те, время которых наступило)"""
         with self.get_connection() as conn:
-            cursor = conn.execute("SELECT * FROM reaction_queue ORDER BY created_at")
+            cursor = conn.execute("""
+                SELECT * FROM reaction_queue
+                WHERE execute_at <= datetime('now')
+                ORDER BY execute_at
+            """)
             return [dict(row) for row in cursor.fetchall()]
+
+    def get_pending_reactions_count(self) -> int:
+        """Получить количество ожидающих реакций"""
+        with self.get_connection() as conn:
+            cursor = conn.execute("SELECT COUNT(*) FROM reaction_queue")
+            return cursor.fetchone()[0]
     
     def remove_reaction_from_queue(self, reaction_id: int):
         """Удалить реакцию из очереди"""

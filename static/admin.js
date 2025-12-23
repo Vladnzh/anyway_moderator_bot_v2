@@ -888,7 +888,7 @@ function renderLogs(logs) {
     }
     
     container.innerHTML = logs.map(log => `
-        <div class="log-item">
+        <div class="log-item ${log.status === 'failed' ? 'log-item-failed' : ''}">
             <div class="log-main">
                 <div class="log-user-info">
                     <div class="log-user-avatar">${(log.username || 'U')[0].toUpperCase()}</div>
@@ -897,10 +897,11 @@ function renderLogs(logs) {
                         <div class="log-time">${formatDateTime(log.timestamp)}</div>
                     </div>
                 </div>
-                
+
                 <div class="log-action">
                     <div class="log-trigger">${escapeHtml(log.trigger)}</div>
                     <div class="log-reaction">${log.emoji}</div>
+                    ${log.status === 'failed' ? '<div class="log-status-badge failed">❌ Ошибка</div>' : '<div class="log-status-badge success">✅</div>'}
                 </div>
             </div>
             

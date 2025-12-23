@@ -165,7 +165,7 @@ def create_tag(tag: TagUpdate, _: bool = Depends(require_api_admin)):
         tag_data = {
             'tag': tag.tag.strip().lower(),
             'emoji': tag.emoji.strip(),
-            'delay': max(0, min(60, tag.delay)),
+            'delay': max(0, min(3600, tag.delay)),
             'match_mode': tag.match_mode,
             'require_photo': tag.require_photo,
             'reply_ok': tag.reply_ok.strip(),
@@ -195,7 +195,7 @@ def update_tag(tag_id: str, tag: TagUpdate, _: bool = Depends(require_api_admin)
         tag_data = {
             'tag': tag.tag.strip().lower(),
             'emoji': tag.emoji.strip(),
-            'delay': max(0, min(60, tag.delay)),
+            'delay': max(0, min(3600, tag.delay)),
             'match_mode': tag.match_mode,
             'require_photo': tag.require_photo,
             'reply_ok': tag.reply_ok.strip(),
